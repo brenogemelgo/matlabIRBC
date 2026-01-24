@@ -3,7 +3,6 @@ clc; clearvars; close all
 root = fileparts(mfilename("fullpath"));
 addpath(fullfile(root, "functions"));
 
-stencil = "D3Q27"; % "D3Q19" or "D3Q27"
 phase_field = true;
 
 wantNames = [ ...
@@ -17,25 +16,8 @@ wantNames = [ ...
                  "WEST", "EAST", "SOUTH", "NORTH", "BACK", "FRONT"
              ];
 
-[Q, w, cx, cy, cz, bitLists, bcs] = defineStencil(stencil);
-
-% constants
-as = sqrt(sym(3));
-as2 = as ^ 2;
-as4 = as ^ 4;
-cs2 = sym(1) / as2; % = 1/3
-cxS = sym(cx(:));
-cyS = sym(cy(:));
-czS = sym(cz(:));
-wS = sym(w(:));
-
-% hermite tensors
-Hxx = cxS .^ 2 - cs2;
-Hxy = cxS .* cyS;
-Hxz = cxS .* czS;
-Hyy = cyS .^ 2 - cs2;
-Hyz = cyS .* czS;
-Hzz = czS .^ 2 - cs2;
+S19 = packStencil("D3Q19");
+S27 = packStencil("D3Q27");
 
 % symbols
 p = sym('p', 'real');
@@ -110,15 +92,21 @@ for c = 1:numel(allCases)
     key = allCases{c}.key;
     typ = allCases{c}.type;
 
-    Os = getCoordinates(bcs.(key), bitLists);
-    Is = getOppositeCoordinates(Os, cx, cy, cz);
+    Os19 = getCoordinates(S19.bcs.(key), S19.bitLists);
+    Is19 = getOppositeCoordinates(Os19, S19.cx, S19.cy, S19.cz);
 
-    % solve boundary moments
-    sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, ...
-        as2, as4, cxS, cyS, czS, p, ux, uy, uz, pI, mxxI, myyI, mzzI, mxyI, mxzI, myzI, typ);
+    Os27 = getCoordinates(S27.bcs.(key), S27.bitLists);
+    Is27 = getOppositeCoordinates(Os27, S27.cx, S27.cy, S27.cz);
 
-    % print solved boundary moments
-    print_neumann_case_block(name, typ, Is, cs2, cx, cy, cz, Hxy, Hxz, Hyz, sol, phase_field);
+    sol19 = solve_specific_case(S19.Q, S19.wS, S19.Hxx, S19.Hxy, S19.Hxz, S19.Hyy, S19.Hyz, S19.Hzz, ...
+        Os19, Is19, S19.as2, S19.as4, S19.cxS, S19.cyS, S19.czS, ...
+        p, ux, uy, uz, pI, mxxI, myyI, mzzI, mxyI, mxzI, myzI, typ);
+
+    sol27 = solve_specific_case(S27.Q, S27.wS, S27.Hxx, S27.Hxy, S27.Hxz, S27.Hyy, S27.Hyz, S27.Hzz, ...
+        Os27, Is27, S27.as2, S27.as4, S27.cxS, S27.cyS, S27.czS, ...
+        p, ux, uy, uz, pI, mxxI, myyI, mzzI, mxyI, mxzI, myzI, typ);
+
+    print_neumann_case_block_conditional(name, typ, sol19, sol27, phase_field);
 
 end
 
@@ -290,7 +278,7 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
 
 end
 
-function print_neumann_case_block(name, typ, Is, cs2, cx, cy, cz, Hxy, Hxz, Hyz, sol, phase_field)
+function print_neumann_case_block_conditional(name, typ, sol19, sol27, phase_field)
 
     [dx, dy, dz] = neumann_shift_from_name(name);
 
@@ -311,32 +299,48 @@ function print_neumann_case_block(name, typ, Is, cs2, cx, cy, cz, Hxy, Hxz, Hyz,
     need = incoming_need_from_neumann_type(typ);
     print_incoming_second_order_calc(need);
 
-    fprintf('\n');
+    fprintf('\n   // IRBC-Neumann\n');
 
-    % explicit incoming moments
-    % print_incoming_block_neumann(typ, Is, cs2, cx, cy, cz, Hxy, Hxz, Hyz);
-
-    fprintf('   // IRBC-Neumann\n');
-
-    % unspecified moments default to equilibrium u_alpha u_beta
     ux = sym('ux', 'real'); uy = sym('uy', 'real'); uz = sym('uz', 'real');
 
-    expr_mxx = get_or(sol, 'mxx', ux * ux);
-    expr_mxy = get_or(sol, 'mxy', ux * uy);
-    expr_mxz = get_or(sol, 'mxz', ux * uz);
-    expr_myy = get_or(sol, 'myy', uy * uy);
-    expr_myz = get_or(sol, 'myz', uy * uz);
-    expr_mzz = get_or(sol, 'mzz', uz * uz);
+    e19 = moment_exprs(sol19, ux, uy, uz);
+    e27 = moment_exprs(sol27, ux, uy, uz);
 
-    fprintf('   moments[m_i<4>()] = %s; // mxx\n', expression(expr_mxx));
-    fprintf('   moments[m_i<5>()] = %s; // mxy\n', expression(expr_mxy));
-    fprintf('   moments[m_i<6>()] = %s; // mxz\n', expression(expr_mxz));
-    fprintf('   moments[m_i<7>()] = %s; // myy\n', expression(expr_myy));
-    fprintf('   moments[m_i<8>()] = %s; // myz\n', expression(expr_myz));
-    fprintf('   moments[m_i<9>()] = %s; // mzz\n\n', expression(expr_mzz));
+    print_moment_conditional(4, 'mxx', e19.mxx, e27.mxx);
+    print_moment_conditional(5, 'mxy', e19.mxy, e27.mxy);
+    print_moment_conditional(6, 'mxz', e19.mxz, e27.mxz);
+    print_moment_conditional(7, 'myy', e19.myy, e27.myy);
+    print_moment_conditional(8, 'myz', e19.myz, e27.myz);
+    print_moment_conditional(9, 'mzz', e19.mzz, e27.mzz);
 
-    fprintf('   return;\n');
+    fprintf('\n   return;\n');
     fprintf('}\n');
+end
+
+function E = moment_exprs(sol, ux, uy, uz)
+    E.mxx = get_or(sol, 'mxx', ux * ux);
+    E.mxy = get_or(sol, 'mxy', ux * uy);
+    E.mxz = get_or(sol, 'mxz', ux * uz);
+    E.myy = get_or(sol, 'myy', uy * uy);
+    E.myz = get_or(sol, 'myz', uy * uz);
+    E.mzz = get_or(sol, 'mzz', uz * uz);
+end
+
+function print_moment_conditional(idx, tag, expr19, expr27)
+
+    if exprEqual(expr19, expr27)
+        fprintf('   moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
+        return;
+    end
+
+    fprintf('   if constexpr (VelocitySet::Q() == 19)\n');
+    fprintf('   {\n');
+    fprintf('       moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
+    fprintf('   }\n');
+    fprintf('   else\n');
+    fprintf('   {\n');
+    fprintf('       moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr27), tag);
+    fprintf('   }\n');
 end
 
 function e = get_or(sol, field, fallback)

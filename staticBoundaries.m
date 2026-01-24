@@ -258,7 +258,7 @@ end
 
 function print_moment_conditional(idx, tag, expr19, expr27)
 
-    if expr_equal(expr19, expr27)
+    if exprEqual(expr19, expr27)
         fprintf('   moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
         return;
     end
