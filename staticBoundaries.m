@@ -3,6 +3,10 @@ clc; clearvars; close all
 stencil = "D3Q27"; % "D3Q19" or "D3Q27"
 phase_field = true;
 
+wantNames = ["WEST_SOUTH_BACK", "WEST_SOUTH_FRONT", "EAST_SOUTH_BACK", "EAST_SOUTH_FRONT", "WEST_NORTH_BACK", "WEST_NORTH_FRONT", "EAST_NORTH_BACK", "EAST_NORTH_FRONT", ...
+                 "SOUTH_WEST", "SOUTH_EAST", "NORTH_WEST", "NORTH_EAST", "WEST_BACK", "WEST_FRONT", "EAST_BACK", "EAST_FRONT", "SOUTH_BACK", "SOUTH_FRONT", "NORTH_BACK", "NORTH_FRONT", ...
+                 "WEST", "EAST", "SOUTH", "NORTH", "BACK", "FRONT"];
+
 [Q, w, cx, cy, cz, bitLists, bcs] = defineStencil(stencil);
 
 % constants
@@ -67,6 +71,9 @@ face = { ...
 
 allCases = [corner(:); edge(:); face(:)];
 allCases = allCases.';
+
+mask = cellfun(@(s) any(s.name == wantNames), allCases);
+allCases = allCases(mask);
 
 % main loop
 for c = 1:numel(allCases)

@@ -3,6 +3,12 @@ clc; clearvars; close all
 stencil = "D3Q27"; % "D3Q19" or "D3Q27"
 phase_field = true;
 
+wantNames = [ ...
+                 "WEST_SOUTH_BACK", "WEST_SOUTH_FRONT", "EAST_SOUTH_BACK", "EAST_SOUTH_FRONT", "WEST_NORTH_BACK", "WEST_NORTH_FRONT", "EAST_NORTH_BACK", "EAST_NORTH_FRONT", ...
+                 "SOUTH_WEST", "SOUTH_EAST", "NORTH_WEST", "NORTH_EAST", "WEST_BACK", "WEST_FRONT", "EAST_BACK", "EAST_FRONT", "SOUTH_BACK", "SOUTH_FRONT", "NORTH_BACK", "NORTH_FRONT", ...
+                 "WEST", "EAST", "SOUTH", "NORTH", "BACK", "FRONT" ...
+             ];
+
 [Q, w, cx, cy, cz, bitLists, bcs] = defineStencil(stencil);
 
 % constants
@@ -38,14 +44,21 @@ myzI = sym('myzI', 'real');
 
 % cases
 corner = { ...
-              struct('name', "WEST_NORTH_FRONT", 'key', "NORTH_WEST_FRONT", 'type', "corner") ...
+              struct('name', "WEST_SOUTH_BACK", 'key', "SOUTH_WEST_BACK", 'type', "corner"), ...
+              struct('name', "WEST_SOUTH_FRONT", 'key', "SOUTH_WEST_FRONT", 'type', "corner"), ...
+              struct('name', "EAST_SOUTH_BACK", 'key', "SOUTH_EAST_BACK", 'type', "corner"), ...
+              struct('name', "EAST_SOUTH_FRONT", 'key', "SOUTH_EAST_FRONT", 'type', "corner"), ...
+              struct('name', "WEST_NORTH_BACK", 'key', "NORTH_WEST_BACK", 'type', "corner"), ...
+              struct('name', "WEST_NORTH_FRONT", 'key', "NORTH_WEST_FRONT", 'type', "corner"), ...
+              struct('name', "EAST_NORTH_BACK", 'key', "NORTH_EAST_BACK", 'type', "corner"), ...
+              struct('name', "EAST_NORTH_FRONT", 'key', "NORTH_EAST_FRONT", 'type', "corner") ...
           };
 
 edge_mxz_myz = { ...
                     struct('name', "SOUTH_WEST", 'key', "SOUTH_WEST", 'type', "edge_mxz_myz"), ...
                     struct('name', "SOUTH_EAST", 'key', "SOUTH_EAST", 'type', "edge_mxz_myz"), ...
-                    struct('name', "NORTH_EAST", 'key', "NORTH_EAST", 'type', "edge_mxz_myz"), ...
-                    struct('name', "NORTH_WEST", 'key', "NORTH_WEST", 'type', "edge_mxz_myz") ...
+                    struct('name', "NORTH_WEST", 'key', "NORTH_WEST", 'type', "edge_mxz_myz"), ...
+                    struct('name', "NORTH_EAST", 'key', "NORTH_EAST", 'type', "edge_mxz_myz") ...
                 };
 
 edge_mxy_myz = { ...
@@ -79,6 +92,9 @@ face_back_front = { ...
 
 allCases = [corner(:); edge_mxz_myz(:); edge_mxy_myz(:); edge_mxy_mxz(:); face_west_east(:); face_south_north(:); face_back_front(:)];
 allCases = allCases.';
+
+mask = cellfun(@(s) any(s.name == wantNames), allCases);
+allCases = allCases(mask);
 
 % main loop
 for c = 1:numel(allCases)
@@ -676,15 +692,25 @@ function [dx, dy, dz] = neumann_shift_from_name(name)
 
     if contains(name, "NORTH")
         dy = -1;
-    elseif contains(name, "SOUTH")
+    end
+
+    if contains(name, "SOUTH")
         dy = +1;
-    elseif contains(name, "WEST")
+    end
+
+    if contains(name, "WEST")
         dx = +1;
-    elseif contains(name, "EAST")
+    end
+
+    if contains(name, "EAST")
         dx = -1;
-    elseif contains(name, "BACK")
+    end
+
+    if contains(name, "BACK")
         dz = +1;
-    elseif contains(name, "FRONT")
+    end
+
+    if contains(name, "FRONT")
         dz = -1;
     end
 
@@ -696,8 +722,6 @@ function need = incoming_need_init()
 end
 
 function print_incoming_second_order_calc(need)
-    % Prints only the required 2nd-order incoming moments.
-    % Intentionally does NOT print p_I.
 
     if ~(need.mxx || need.myy || need.mzz || need.mxy || need.mxz || need.myz)
         return;
@@ -749,7 +773,7 @@ function need = incoming_need_from_neumann_type(typ)
             need.mxz = true;
 
         case "face_west_east"
-            % Uses myy_I and mzz_I plus all 3 shears
+            % uses myy_I and mzz_I plus all 3 shears
             need.myy = true;
             need.mzz = true;
             need.mxy = true;
@@ -757,7 +781,7 @@ function need = incoming_need_from_neumann_type(typ)
             need.myz = true;
 
         case "face_south_north"
-            % Uses mxx_I and mzz_I plus all 3 shears
+            % uses mxx_I and mzz_I plus all 3 shears
             need.mxx = true;
             need.mzz = true;
             need.mxy = true;
@@ -765,7 +789,7 @@ function need = incoming_need_from_neumann_type(typ)
             need.myz = true;
 
         case "face_back_front"
-            % Uses mxx_I and myy_I plus all 3 shears
+            % uses mxx_I and myy_I plus all 3 shears
             need.mxx = true;
             need.myy = true;
             need.mxy = true;
