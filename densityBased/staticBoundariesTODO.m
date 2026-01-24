@@ -20,7 +20,7 @@ S19 = buildStencilData("D3Q19");
 S27 = buildStencilData("D3Q27");
 
 % symbols
-pI = sym('pI', 'real');
+rhoI = sym('rhoI', 'real');
 mxyI = sym('mxyI', 'real');
 mxzI = sym('mxzI', 'real');
 myzI = sym('myzI', 'real');
@@ -85,10 +85,10 @@ for c = 1:numel(allCases)
     Is27 = getOppositeCoordinates(Os27, S27.cx, S27.cy, S27.cz);
 
     sol19 = solve_static_case(S19.Q, S19.wS, S19.Hxx, S19.Hxy, S19.Hxz, S19.Hyy, S19.Hyz, S19.Hzz, ...
-        Os19, Is19, S19.as2, S19.as4, omega, pI, mxyI, mxzI, myzI, solveShears);
+        Os19, Is19, S19.as2, S19.as4, omega, rhoI, mxyI, mxzI, myzI, solveShears);
 
     sol27 = solve_static_case(S27.Q, S27.wS, S27.Hxx, S27.Hxy, S27.Hxz, S27.Hyy, S27.Hyz, S27.Hzz, ...
-        Os27, Is27, S27.as2, S27.as4, omega, pI, mxyI, mxzI, myzI, solveShears);
+        Os27, Is27, S27.as2, S27.as4, omega, rhoI, mxyI, mxzI, myzI, solveShears);
 
     fprintf('\ncase normalVector::%s():\n{\n', name);
 
@@ -100,13 +100,15 @@ for c = 1:numel(allCases)
     fprintf('\n   return;\n}\n');
 end
 
-function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, omega, pI, mxyI, mxzI, myzI, solveShears)
-    % Unknowns
-    p = sym('p', 'real');
+% TODO
+function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, omega, rhoI, mxyI, mxzI, myzI, solveShears)
+    % unknowns
+    rho = sym('rho', 'real');
 
     solveShears = string(solveShears);
     solveShears = solveShears(:).';
 
+    % shears
     mxy = sym(0); mxz = sym(0); myz = sym(0);
     if any(solveShears == "mxy"); mxy = sym('mxy', 'real'); end
     if any(solveShears == "mxz"); mxz = sym('mxz', 'real'); end
@@ -123,26 +125,23 @@ function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as
     for i = 0:(Q - 1)
         ii = i + 1;
 
-        f(ii) = wS(ii) * ( ...
-            p + ...
+        f(ii) = wS(ii) * rho * ( ...
             as2 * (ux * 0 + uy * 0 + uz * 0) + ...
             (as4 / 2) * mxx * Hxx(ii) + as4 * mxy * Hxy(ii) + as4 * mxz * Hxz(ii) + ...
-            (as4 / 2) * myy * Hyy(ii) + as4 * myz * Hyz(ii) + (as4 / 2) * mzz * Hzz(ii));
+            (as4 / 2) * myy * Hyy(ii) + as4 * myz * Hyz(ii) + (as4 / 2) * mzz * Hzz(ii) ...
+        );
 
-        feq(ii) = wS(ii) * ( ...
-            p + ...
-            as2 * (ux * 0 + uy * 0 + uz * 0) + ...
-            (as4 / 2) * (ux * ux) * Hxx(ii) + as4 * (ux * uy) * Hxy(ii) + as4 * (ux * uz) * Hxz(ii) + ...
-            (as4 / 2) * (uy * uy) * Hyy(ii) + as4 * (uy * uz) * Hyz(ii) + (as4 / 2) * (uz * uz) * Hzz(ii));
+        feq(ii) = wS(ii) * rho;
     end
 
     % equations
     eqs = sym([]);
 
-    eqPress = pI == sum((1 - omega) * f(Os + 1) + omega * feq(Os + 1));
-    eqs(end + 1) = eqPress;
+    % density constraint
+    eqRho = rhoI == sum((1 - omega) * f(Os + 1) + omega * feq(Os + 1));
+    eqs(end + 1) = eqRho;
 
-    unknowns = p;
+    unknowns = rho;
 
     if any(solveShears == "mxy")
         eqMxy = mxyI == sum(f(Is + 1) .* Hxy(Is + 1));
@@ -168,27 +167,18 @@ function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as
 
     if isstruct(S)
 
-        if ~isfield(S, 'p') || isempty(S.p)
-            error('solve_static_case: no solution for p');
+        if ~isfield(S, 'rho') || isempty(S.rho)
+            error('solve_static_case_density: no solution for rho');
         end
 
-        sol.p = simplify(S.p(1));
+        sol.rho = simplify(S.rho(1));
 
-        if any(solveShears == "mxy")
-            sol.mxy = simplify(S.mxy(1));
-        end
-
-        if any(solveShears == "mxz")
-            sol.mxz = simplify(S.mxz(1));
-        end
-
-        if any(solveShears == "myz")
-            sol.myz = simplify(S.myz(1));
-        end
+        if any(solveShears == "mxy"); sol.mxy = simplify(S.mxy(1)); end
+        if any(solveShears == "mxz"); sol.mxz = simplify(S.mxz(1)); end
+        if any(solveShears == "myz"); sol.myz = simplify(S.myz(1)); end
 
     else
         S = sym(S);
-
         nVars = numel(unknowns);
 
         if isvector(S)
@@ -200,27 +190,17 @@ function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as
             elseif size(S, 1) == nVars
                 Srow = transpose(S(:, 1));
             else
-                error('solve_static_case: unexpected solve() output size [%d x %d] for nVars=%d', size(S, 1), size(S, 2), nVars);
+                error('solve_static_case_density: unexpected solve() output size [%d x %d] for nVars=%d', size(S, 1), size(S, 2), nVars);
             end
 
         end
 
-        sol.p = simplify(Srow(1));
+        sol.rho = simplify(Srow(1));
 
         k = 2;
-
-        if any(solveShears == "mxy")
-            sol.mxy = simplify(Srow(k)); k = k + 1;
-        end
-
-        if any(solveShears == "mxz")
-            sol.mxz = simplify(Srow(k)); k = k + 1;
-        end
-
-        if any(solveShears == "myz")
-            sol.myz = simplify(Srow(k)); k = k + 1;
-        end
-
+        if any(solveShears == "mxy"); sol.mxy = simplify(Srow(k)); k = k + 1; end
+        if any(solveShears == "mxz"); sol.mxz = simplify(Srow(k)); k = k + 1; end
+        if any(solveShears == "myz"); sol.myz = simplify(Srow(k)); k = k + 1; end
     end
 
 end

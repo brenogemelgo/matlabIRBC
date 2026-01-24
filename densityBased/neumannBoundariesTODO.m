@@ -44,43 +44,43 @@ corner = { ...
               struct('name', "EAST_NORTH_FRONT", 'key', "EAST_NORTH_FRONT", 'type', "corner") ...
           };
 
-edge_mxz_myz = { ...
-                    struct('name', "WEST_SOUTH", 'key', "WEST_SOUTH", 'type', "edge_mxz_myz"), ...
-                    struct('name', "EAST_SOUTH", 'key', "EAST_SOUTH", 'type', "edge_mxz_myz"), ...
-                    struct('name', "WEST_NORTH", 'key', "WEST_NORTH", 'type', "edge_mxz_myz"), ...
-                    struct('name', "EAST_NORTH", 'key', "EAST_NORTH", 'type', "edge_mxz_myz") ...
-                };
+edge_xz_yz = { ...
+                  struct('name', "WEST_SOUTH", 'key', "WEST_SOUTH", 'type', "edge_xz_yz"), ...
+                  struct('name', "EAST_SOUTH", 'key', "EAST_SOUTH", 'type', "edge_xz_yz"), ...
+                  struct('name', "WEST_NORTH", 'key', "WEST_NORTH", 'type', "edge_xz_yz"), ...
+                  struct('name', "EAST_NORTH", 'key', "EAST_NORTH", 'type', "edge_xz_yz") ...
+              };
 
-edge_mxy_myz = { ...
-                    struct('name', "WEST_BACK", 'key', "WEST_BACK", 'type', "edge_mxy_myz"), ...
-                    struct('name', "WEST_FRONT", 'key', "WEST_FRONT", 'type', "edge_mxy_myz"), ...
-                    struct('name', "EAST_BACK", 'key', "EAST_BACK", 'type', "edge_mxy_myz"), ...
-                    struct('name', "EAST_FRONT", 'key', "EAST_FRONT", 'type', "edge_mxy_myz") ...
-                };
+edge_xy_yz = { ...
+                  struct('name', "WEST_BACK", 'key', "WEST_BACK", 'type', "edge_xy_yz"), ...
+                  struct('name', "WEST_FRONT", 'key', "WEST_FRONT", 'type', "edge_xy_yz"), ...
+                  struct('name', "EAST_BACK", 'key', "EAST_BACK", 'type', "edge_xy_yz"), ...
+                  struct('name', "EAST_FRONT", 'key', "EAST_FRONT", 'type', "edge_xy_yz") ...
+              };
 
-edge_mxy_mxz = { ...
-                    struct('name', "SOUTH_BACK", 'key', "SOUTH_BACK", 'type', "edge_mxy_mxz"), ...
-                    struct('name', "SOUTH_FRONT", 'key', "SOUTH_FRONT", 'type', "edge_mxy_mxz"), ...
-                    struct('name', "NORTH_BACK", 'key', "NORTH_BACK", 'type', "edge_mxy_mxz"), ...
-                    struct('name', "NORTH_FRONT", 'key', "NORTH_FRONT", 'type', "edge_mxy_mxz") ...
-                };
+edge_xy_xz = { ...
+                  struct('name', "SOUTH_BACK", 'key', "SOUTH_BACK", 'type', "edge_xy_xz"), ...
+                  struct('name', "SOUTH_FRONT", 'key', "SOUTH_FRONT", 'type', "edge_xy_xz"), ...
+                  struct('name', "NORTH_BACK", 'key', "NORTH_BACK", 'type', "edge_xy_xz"), ...
+                  struct('name', "NORTH_FRONT", 'key', "NORTH_FRONT", 'type', "edge_xy_xz") ...
+              };
 
-face_west_east = { ...
-                      struct('name', "WEST", 'key', "WEST", 'type', "face_west_east"), ...
-                      struct('name', "EAST", 'key', "EAST", 'type', "face_west_east") ...
-                  };
+face_we = { ...
+               struct('name', "WEST", 'key', "WEST", 'type', "face_we"), ...
+               struct('name', "EAST", 'key', "EAST", 'type', "face_we") ...
+           };
 
-face_south_north = { ...
-                        struct('name', "SOUTH", 'key', "SOUTH", 'type', "face_south_north"), ...
-                        struct('name', "NORTH", 'key', "NORTH", 'type', "face_south_north") ...
-                    };
+face_sn = { ...
+               struct('name', "SOUTH", 'key', "SOUTH", 'type', "face_sn"), ...
+               struct('name', "NORTH", 'key', "NORTH", 'type', "face_sn") ...
+           };
 
-face_back_front = { ...
-                       struct('name', "BACK", 'key', "BACK", 'type', "face_back_front"), ...
-                       struct('name', "FRONT", 'key', "FRONT", 'type', "face_back_front") ...
-                   };
+face_bf = { ...
+               struct('name', "BACK", 'key', "BACK", 'type', "face_bf"), ...
+               struct('name', "FRONT", 'key', "FRONT", 'type', "face_bf") ...
+           };
 
-allCases = [corner(:); edge_mxz_myz(:); edge_mxy_myz(:); edge_mxy_mxz(:); face_west_east(:); face_south_north(:); face_back_front(:)];
+allCases = [corner(:); edge_xz_yz(:); edge_xy_yz(:); edge_xy_xz(:); face_we(:); face_sn(:); face_bf(:)];
 allCases = allCases.';
 
 mask = cellfun(@(s) any(s.name == wantNames), allCases);
@@ -131,29 +131,29 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
 
     % promote only the specified moments to symbolic unknowns
     switch typ
-        case "edge_mxz_myz"
+        case "edge_xz_yz"
             mxz = sym('mxz', 'real'); myz = sym('myz', 'real');
             unknowns = [mxz; myz];
 
-        case "edge_mxy_myz"
+        case "edge_xy_yz"
             mxy = sym('mxy', 'real'); myz = sym('myz', 'real');
             unknowns = [mxy; myz];
 
-        case "edge_mxy_mxz"
+        case "edge_xy_xz"
             mxy = sym('mxy', 'real'); mxz = sym('mxz', 'real');
             unknowns = [mxy; mxz];
 
-        case "face_west_east"
+        case "face_we"
             myy = sym('myy', 'real'); mxy = sym('mxy', 'real'); mxz = sym('mxz', 'real');
             myz = sym('myz', 'real'); mzz = sym('mzz', 'real');
             unknowns = [myy; mxy; mxz; myz; mzz];
 
-        case "face_south_north"
+        case "face_sn"
             mxx = sym('mxx', 'real'); mxy = sym('mxy', 'real'); mxz = sym('mxz', 'real');
             myz = sym('myz', 'real'); mzz = sym('mzz', 'real');
             unknowns = [mxx; mxy; mxz; myz; mzz];
 
-        case "face_back_front"
+        case "face_bf"
             mxx = sym('mxx', 'real'); mxy = sym('mxy', 'real'); mxz = sym('mxz', 'real');
             myy = sym('myy', 'real'); myz = sym('myz', 'real');
             unknowns = [mxx; mxy; mxz; myy; myz];
@@ -185,25 +185,25 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
 
     % build equations and unknowns
     switch typ
-        case "edge_mxz_myz"
+        case "edge_xz_yz"
             eqs = [ ...
                        mxzI == sumHxz; ...
                        myzI == sumHyz ...
                    ];
 
-        case "edge_mxy_myz"
+        case "edge_xy_yz"
             eqs = [ ...
                        mxyI == sumHxy; ...
                        myzI == sumHyz ...
                    ];
 
-        case "edge_mxy_mxz"
+        case "edge_xy_xz"
             eqs = [ ...
                        mxyI == sumHxy; ...
                        mxzI == sumHxz ...
                    ];
 
-        case "face_west_east"
+        case "face_we"
             eqmYY = (myy == uy * uy + uz * uz - mzz);
             eqmZZ = (myyI - mzzI == sumHyy - sumHzz);
             eqXY = (mxyI == sumHxy);
@@ -212,7 +212,7 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
 
             eqs = [eqmYY; eqXY; eqXZ; eqYZ; eqmZZ];
 
-        case "face_south_north"
+        case "face_sn"
             eqmXX = (mxx == ux * ux + uz * uz - mzz);
             eqmZZ = (mxxI - mzzI == sumHxx - sumHzz);
             eqXY = (mxyI == sumHxy);
@@ -221,7 +221,7 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
 
             eqs = [eqmXX; eqXY; eqXZ; eqYZ; eqmZZ];
 
-        case "face_back_front"
+        case "face_bf"
             eqmXX = (mxx == ux * ux + uy * uy - myy);
             eqmYY = (mxxI - myyI == sumHxx - sumHyy);
             eqXY = (mxyI == sumHxy);
@@ -432,19 +432,19 @@ function need = incoming_need_from_neumann_type(typ)
     need = incoming_need_init();
 
     switch typ
-        case "edge_mxz_myz"
+        case "edge_xz_yz"
             need.mxz = true;
             need.myz = true;
 
-        case "edge_mxy_myz"
+        case "edge_xy_yz"
             need.mxy = true;
             need.myz = true;
 
-        case "edge_mxy_mxz"
+        case "edge_xy_xz"
             need.mxy = true;
             need.mxz = true;
 
-        case "face_west_east"
+        case "face_we"
             % uses myy_I and mzz_I plus all 3 shears
             need.myy = true;
             need.mzz = true;
@@ -452,7 +452,7 @@ function need = incoming_need_from_neumann_type(typ)
             need.mxz = true;
             need.myz = true;
 
-        case "face_south_north"
+        case "face_sn"
             % uses mxx_I and mzz_I plus all 3 shears
             need.mxx = true;
             need.mzz = true;
@@ -460,7 +460,7 @@ function need = incoming_need_from_neumann_type(typ)
             need.mxz = true;
             need.myz = true;
 
-        case "face_back_front"
+        case "face_bf"
             % uses mxx_I and myy_I plus all 3 shears
             need.mxx = true;
             need.myy = true;
