@@ -1,6 +1,7 @@
 clc; clearvars; close all
 
 stencil = "D3Q27"; % "D3Q19" or "D3Q27"
+phase_field = true;
 
 [Q, w, cx, cy, cz, bitLists, bcs] = defineStencil(stencil);
 
@@ -36,6 +37,10 @@ mxzI = sym('mxzI', 'real');
 myzI = sym('myzI', 'real');
 
 % cases
+corner = { ...
+              struct('name', "WEST_NORTH_FRONT", 'key', "NORTH_WEST_FRONT", 'type', "corner") ...
+          };
+
 edge_mxz_myz = { ...
                     struct('name', "SOUTH_WEST", 'key', "SOUTH_WEST", 'type', "edge_mxz_myz"), ...
                     struct('name', "SOUTH_EAST", 'key', "SOUTH_EAST", 'type', "edge_mxz_myz"), ...
@@ -72,7 +77,7 @@ face_back_front = { ...
                        struct('name', "FRONT", 'key', "FRONT", 'type', "face_back_front") ...
                    };
 
-allCases = [edge_mxz_myz(:); edge_mxy_myz(:); edge_mxy_mxz(:); face_west_east(:); face_south_north(:); face_back_front(:)];
+allCases = [corner(:); edge_mxz_myz(:); edge_mxy_myz(:); edge_mxy_mxz(:); face_west_east(:); face_south_north(:); face_back_front(:)];
 allCases = allCases.';
 
 % main loop
@@ -84,71 +89,12 @@ for c = 1:numel(allCases)
     Os = getCoordinates(bcs.(key), bitLists);
     Is = getOppositeCoordinates(Os, cx, cy, cz);
 
-    fprintf('\n============== %s ==============\n', name);
-
-    % incoming moments
-    % fprintf('const scalar_t p_I = %s;\n', cpp_sum_pop(Is));
-    % switch typ
-    %     case "edge_mxz_myz"
-    %         fprintf('const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
-    %         fprintf('const scalar_t myz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
-
-    %     case "edge_mxy_myz"
-    %         fprintf('const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
-    %         fprintf('const scalar_t myz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
-
-    %     case "edge_mxy_mxz"
-    %         fprintf('const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
-    %         fprintf('const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
-
-    %     case "face_west_east"
-    %         fprintf('const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
-    %         fprintf('const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
-    %         fprintf('const scalar_t myz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
-    %         % myy_I = sum(pop * cy^2) - cs2 * p
-    %         fprintf('const scalar_t myy_I = %s - %s * p;\n', ...
-    %             cpp_sum_pop_weighted(Is, double(cy(Is + 1) .^ 2)), cpp_cast_num(cs2));
-    %         % mzz_I = sum(pop * cz^2) - cs2 * p
-    %         fprintf('const scalar_t mzz_I = %s - %s * p;\n', ...
-    %             cpp_sum_pop_weighted(Is, double(cz(Is + 1) .^ 2)), cpp_cast_num(cs2));
-
-    %     case "face_south_north"
-    %         fprintf('const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
-    %         fprintf('const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
-    %         fprintf('const scalar_t myz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
-    %         % mxx_I = sum(pop * cx^2) - cs2 * p
-    %         fprintf('const scalar_t mxx_I = %s - %s * p;\n', ...
-    %             cpp_sum_pop_weighted(Is, double(cx(Is + 1) .^ 2)), cpp_cast_num(cs2));
-    %         % mzz_I = sum(pop * cz^2) - cs2 * p
-    %         fprintf('const scalar_t mzz_I = %s - %s * p;\n', ...
-    %             cpp_sum_pop_weighted(Is, double(cz(Is + 1) .^ 2)), cpp_cast_num(cs2));
-
-    %     case "face_back_front"
-    %         fprintf('const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
-    %         fprintf('const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
-    %         fprintf('const scalar_t myz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
-    %         % mxx_I = sum(pop * cx^2) - cs2 * p
-    %         fprintf('const scalar_t mxx_I = %s - %s * p;\n', ...
-    %             cpp_sum_pop_weighted(Is, double(cx(Is + 1) .^ 2)), cpp_cast_num(cs2));
-    %         % myy_I = sum(pop * cy^2) - cs2 * p
-    %         fprintf('const scalar_t myy_I = %s - %s * p;\n', ...
-    %             cpp_sum_pop_weighted(Is, double(cy(Is + 1) .^ 2)), cpp_cast_num(cs2));
-
-    %     otherwise
-    %         error('Unknown case type: %s', typ);
-    % end
-
     % solve boundary moments
     sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, ...
         as2, as4, cxS, cyS, czS, p, ux, uy, uz, pI, mxxI, myyI, mzzI, mxyI, mxzI, myzI, typ);
 
     % print solved boundary moments
-    fns = fieldnames(sol);
-
-    for k = 1:numel(fns)
-        fn = fns{k};
-        fprintf('const scalar_t %s = %s;\n', fn, cpp_expr(sol.(fn)));
-    end
+    print_neumann_case_block(name, typ, Is, cs2, cx, cy, cz, Hxy, Hxz, Hyz, sol, phase_field);
 
 end
 
@@ -260,13 +206,52 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
         p, ux, uy, uz, ...
         pI, mxxI, myyI, mzzI, mxyI, mxzI, myzI, typ) %#ok<INUSD>
 
-    % unknown moments
-    mxx = sym('mxx', 'real');
-    myy = sym('myy', 'real');
-    mzz = sym('mzz', 'real');
-    mxy = sym('mxy', 'real');
-    mxz = sym('mxz', 'real');
-    myz = sym('myz', 'real');
+    % equilibrium moments for anything not explicitly solved
+    mxx = ux * ux;
+    myy = uy * uy;
+    mzz = uz * uz;
+    mxy = ux * uy;
+    mxz = ux * uz;
+    myz = uy * uz;
+
+    % corner: equilibrium
+    if typ == "corner"
+        sol = struct();
+        return;
+    end
+
+    % promote only the specified moments to symbolic unknowns
+    switch typ
+        case "edge_mxz_myz"
+            mxz = sym('mxz', 'real'); myz = sym('myz', 'real');
+            unknowns = [mxz; myz];
+
+        case "edge_mxy_myz"
+            mxy = sym('mxy', 'real'); myz = sym('myz', 'real');
+            unknowns = [mxy; myz];
+
+        case "edge_mxy_mxz"
+            mxy = sym('mxy', 'real'); mxz = sym('mxz', 'real');
+            unknowns = [mxy; mxz];
+
+        case "face_west_east"
+            myy = sym('myy', 'real'); mxy = sym('mxy', 'real'); mxz = sym('mxz', 'real');
+            myz = sym('myz', 'real'); mzz = sym('mzz', 'real');
+            unknowns = [myy; mxy; mxz; myz; mzz];
+
+        case "face_south_north"
+            mxx = sym('mxx', 'real'); mxy = sym('mxy', 'real'); mxz = sym('mxz', 'real');
+            myz = sym('myz', 'real'); mzz = sym('mzz', 'real');
+            unknowns = [mxx; mxy; mxz; myz; mzz];
+
+        case "face_back_front"
+            mxx = sym('mxx', 'real'); mxy = sym('mxy', 'real'); mxz = sym('mxz', 'real');
+            myy = sym('myy', 'real'); myz = sym('myz', 'real');
+            unknowns = [mxx; mxy; mxz; myy; myz];
+
+        otherwise
+            error('solve_specific_case: unknown typ "%s".', typ);
+    end
 
     % build f
     f = sym(zeros(Q, 1));
@@ -296,21 +281,18 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
                        mxzI == sumHxz; ...
                        myzI == sumHyz ...
                    ];
-            unknowns = [mxz; myz];
 
         case "edge_mxy_myz"
             eqs = [ ...
                        mxyI == sumHxy; ...
                        myzI == sumHyz ...
                    ];
-            unknowns = [mxy; myz];
 
         case "edge_mxy_mxz"
             eqs = [ ...
                        mxyI == sumHxy; ...
                        mxzI == sumHxz ...
                    ];
-            unknowns = [mxy; mxz];
 
         case "face_west_east"
             eqmYY = (myy == uy * uy + uz * uz - mzz);
@@ -320,7 +302,6 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
             eqYZ = (myzI == sumHyz);
 
             eqs = [eqmYY; eqXY; eqXZ; eqYZ; eqmZZ];
-            unknowns = [myy; mxy; mxz; myz; mzz];
 
         case "face_south_north"
             eqmXX = (mxx == ux * ux + uz * uz - mzz);
@@ -330,7 +311,6 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
             eqYZ = (myzI == sumHyz);
 
             eqs = [eqmXX; eqXY; eqXZ; eqYZ; eqmZZ];
-            unknowns = [mxx; mxy; mxz; myz; mzz];
 
         case "face_back_front"
             eqmXX = (mxx == ux * ux + uy * uy - myy);
@@ -340,7 +320,6 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
             eqYZ = (myzI == sumHyz);
 
             eqs = [eqmXX; eqXY; eqXZ; eqmYY; eqYZ];
-            unknowns = [mxx; mxy; mxz; myy; myz];
 
         otherwise
             error('solve_specific_case: unknown typ "%s".', typ);
@@ -576,4 +555,228 @@ function s = cpp_replace_vars(s)
     s = regexprep(s, '\<ux\>', 'moments[m_i<1>()]');
     s = regexprep(s, '\<uy\>', 'moments[m_i<2>()]');
     s = regexprep(s, '\<uz\>', 'moments[m_i<3>()]');
+end
+
+function print_neumann_case_block(name, typ, Is, cs2, cx, cy, cz, Hxy, Hxz, Hyz, sol, phase_field)
+
+    [dx, dy, dz] = neumann_shift_from_name(name);
+
+    fprintf('\ncase normalVector::%s():\n{\n', name);
+    fprintf('   const label_t tid = device::idxBlock(threadIdx.x%s, threadIdx.y%s, threadIdx.z%s);\n\n', ...
+        off_str(dx), off_str(dy), off_str(dz));
+
+    fprintf('   // Classic Neumann\n');
+    fprintf('   moments[m_i<0>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<0>()];   // p\n');
+    fprintf('   moments[m_i<1>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<1>()];   // ux\n');
+    fprintf('   moments[m_i<2>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<2>()];   // uy\n');
+    fprintf('   moments[m_i<3>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<3>()];   // uz\n');
+
+    if phase_field
+        fprintf('   moments[m_i<10>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<10>()]; // phi\n');
+    end
+
+    need = incoming_need_from_neumann_type(typ);
+    print_incoming_second_order_calc(need);
+
+    fprintf('\n');
+
+    % explicit incoming moments
+    % print_incoming_block_neumann(typ, Is, cs2, cx, cy, cz, Hxy, Hxz, Hyz);
+
+    fprintf('   // IRBC-Neumann\n');
+
+    % unspecified moments default to equilibrium u_alpha u_beta
+    ux = sym('ux', 'real'); uy = sym('uy', 'real'); uz = sym('uz', 'real');
+
+    expr_mxx = get_or(sol, 'mxx', ux * ux);
+    expr_mxy = get_or(sol, 'mxy', ux * uy);
+    expr_mxz = get_or(sol, 'mxz', ux * uz);
+    expr_myy = get_or(sol, 'myy', uy * uy);
+    expr_myz = get_or(sol, 'myz', uy * uz);
+    expr_mzz = get_or(sol, 'mzz', uz * uz);
+
+    fprintf('   moments[m_i<4>()] = %s; // mxx\n', cpp_expr(expr_mxx));
+    fprintf('   moments[m_i<5>()] = %s; // mxy\n', cpp_expr(expr_mxy));
+    fprintf('   moments[m_i<6>()] = %s; // mxz\n', cpp_expr(expr_mxz));
+    fprintf('   moments[m_i<7>()] = %s; // myy\n', cpp_expr(expr_myy));
+    fprintf('   moments[m_i<8>()] = %s; // myz\n', cpp_expr(expr_myz));
+    fprintf('   moments[m_i<9>()] = %s; // mzz\n\n', cpp_expr(expr_mzz));
+
+    fprintf('   return;\n');
+    fprintf('}\n');
+end
+
+function print_incoming_block_neumann(typ, Is, cs2, cx, cy, cz, Hxy, Hxz, Hyz)
+    fprintf('   // Incoming moments\n');
+
+    switch typ
+        case "edge_mxz_myz"
+            fprintf('   const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
+            fprintf('   const scalar_t myz_I = %s;\n\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
+
+        case "edge_mxy_myz"
+            fprintf('   const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
+            fprintf('   const scalar_t myz_I = %s;\n\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
+
+        case "edge_mxy_mxz"
+            fprintf('   const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
+            fprintf('   const scalar_t mxz_I = %s;\n\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
+
+        case "face_west_east"
+            fprintf('   const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
+            fprintf('   const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
+            fprintf('   const scalar_t myz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
+            fprintf('   const scalar_t myy_I = %s - %s * moments[m_i<0>()];\n', ...
+                cpp_sum_pop_weighted(Is, double(cy(Is + 1) .^ 2)), cpp_cast_num(cs2));
+            fprintf('   const scalar_t mzz_I = %s - %s * moments[m_i<0>()];\n\n', ...
+                cpp_sum_pop_weighted(Is, double(cz(Is + 1) .^ 2)), cpp_cast_num(cs2));
+
+        case "face_south_north"
+            fprintf('   const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
+            fprintf('   const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
+            fprintf('   const scalar_t myz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
+            fprintf('   const scalar_t mxx_I = %s - %s * moments[m_i<0>()];\n', ...
+                cpp_sum_pop_weighted(Is, double(cx(Is + 1) .^ 2)), cpp_cast_num(cs2));
+            fprintf('   const scalar_t mzz_I = %s - %s * moments[m_i<0>()];\n\n', ...
+                cpp_sum_pop_weighted(Is, double(cz(Is + 1) .^ 2)), cpp_cast_num(cs2));
+
+        case "face_back_front"
+            fprintf('   const scalar_t mxy_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxy(Is + 1))));
+            fprintf('   const scalar_t mxz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hxz(Is + 1))));
+            fprintf('   const scalar_t myz_I = %s;\n', cpp_sum_pop_weighted(Is, double(Hyz(Is + 1))));
+            fprintf('   const scalar_t mxx_I = %s - %s * moments[m_i<0>()];\n', ...
+                cpp_sum_pop_weighted(Is, double(cx(Is + 1) .^ 2)), cpp_cast_num(cs2));
+            fprintf('   const scalar_t myy_I = %s - %s * moments[m_i<0>()];\n\n', ...
+                cpp_sum_pop_weighted(Is, double(cy(Is + 1) .^ 2)), cpp_cast_num(cs2));
+
+        otherwise
+            fprintf('\n');
+    end
+
+end
+
+function e = get_or(sol, field, fallback)
+    if isfield(sol, field), e = sol.(field); else, e = fallback; end
+end
+
+function s = off_str(d)
+
+    if d == 0
+        s = '';
+    elseif d > 0
+        s = sprintf(' + %d', d);
+    else
+        s = sprintf(' - %d', -d);
+    end
+
+end
+
+function [dx, dy, dz] = neumann_shift_from_name(name)
+    dx = 0; dy = 0; dz = 0;
+
+    if contains(name, "NORTH")
+        dy = -1;
+    elseif contains(name, "SOUTH")
+        dy = +1;
+    elseif contains(name, "WEST")
+        dx = +1;
+    elseif contains(name, "EAST")
+        dx = -1;
+    elseif contains(name, "BACK")
+        dz = +1;
+    elseif contains(name, "FRONT")
+        dz = -1;
+    end
+
+end
+
+function need = incoming_need_init()
+    need = struct('mxx', false, 'myy', false, 'mzz', false, ...
+        'mxy', false, 'mxz', false, 'myz', false);
+end
+
+function print_incoming_second_order_calc(need)
+    % Prints only the required 2nd-order incoming moments.
+    % Intentionally does NOT print p_I.
+
+    if ~(need.mxx || need.myy || need.mzz || need.mxy || need.mxz || need.myz)
+        return;
+    end
+
+    fprintf('\n');
+    fprintf('   // Incoming moments\n');
+
+    if need.mxx
+        fprintf('   const scalar_t mxx_I = velocitySet::calculate_moment<VelocitySet, X, X>(pop, boundaryNormal);\n');
+    end
+
+    if need.myy
+        fprintf('   const scalar_t myy_I = velocitySet::calculate_moment<VelocitySet, Y, Y>(pop, boundaryNormal);\n');
+    end
+
+    if need.mzz
+        fprintf('   const scalar_t mzz_I = velocitySet::calculate_moment<VelocitySet, Z, Z>(pop, boundaryNormal);\n');
+    end
+
+    if need.mxy
+        fprintf('   const scalar_t mxy_I = velocitySet::calculate_moment<VelocitySet, X, Y>(pop, boundaryNormal);\n');
+    end
+
+    if need.mxz
+        fprintf('   const scalar_t mxz_I = velocitySet::calculate_moment<VelocitySet, X, Z>(pop, boundaryNormal);\n');
+    end
+
+    if need.myz
+        fprintf('   const scalar_t myz_I = velocitySet::calculate_moment<VelocitySet, Y, Z>(pop, boundaryNormal);\n');
+    end
+
+end
+
+function need = incoming_need_from_neumann_type(typ)
+    need = incoming_need_init();
+
+    switch typ
+        case "edge_mxz_myz"
+            need.mxz = true;
+            need.myz = true;
+
+        case "edge_mxy_myz"
+            need.mxy = true;
+            need.myz = true;
+
+        case "edge_mxy_mxz"
+            need.mxy = true;
+            need.mxz = true;
+
+        case "face_west_east"
+            % Uses myy_I and mzz_I plus all 3 shears
+            need.myy = true;
+            need.mzz = true;
+            need.mxy = true;
+            need.mxz = true;
+            need.myz = true;
+
+        case "face_south_north"
+            % Uses mxx_I and mzz_I plus all 3 shears
+            need.mxx = true;
+            need.mzz = true;
+            need.mxy = true;
+            need.mxz = true;
+            need.myz = true;
+
+        case "face_back_front"
+            % Uses mxx_I and myy_I plus all 3 shears
+            need.mxx = true;
+            need.myy = true;
+            need.mxy = true;
+            need.mxz = true;
+            need.myz = true;
+
+        case "corner"
+            % nothing
+
+        otherwise
+            error('incoming_need_from_neumann_type: unknown typ "%s".', typ);
+    end
+
 end

@@ -1,6 +1,7 @@
 clc; clearvars; close all
 
 stencil = "D3Q27"; % "D3Q19" or "D3Q27"
+phase_field = true;
 
 [Q, w, cx, cy, cz, bitLists, bcs] = defineStencil(stencil);
 
@@ -78,8 +79,6 @@ for c = 1:numel(allCases)
     Os = getCoordinates(bcs.(key), bitLists);
     Is = getOppositeCoordinates(Os, cx, cy, cz);
 
-    fprintf('\n============== %s ==============\n', name);
-
     % incoming moments
     % fprintf('const scalar_t p_I = %s;\n', cpp_sum_pop(Is));
     % if any(solveShears == "mxy")
@@ -96,19 +95,22 @@ for c = 1:numel(allCases)
     sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, omega, pI, mxyI, mxzI, myzI, solveShears);
 
     % print solved boundary moments
-    fprintf('const scalar_t p = %s;\n', cpp_expr(sol.p));
+    % fprintf('const scalar_t p = %s;\n', cpp_expr(sol.p));
+    % if isfield(sol, 'mxy')
+    %     fprintf('const scalar_t mxy = %s;\n', cpp_expr(sol.mxy));
+    % end
+    % if isfield(sol, 'mxz')
+    %     fprintf('const scalar_t mxz = %s;\n', cpp_expr(sol.mxz));
+    % end
+    % if isfield(sol, 'myz')
+    %     fprintf('const scalar_t myz = %s;\n', cpp_expr(sol.myz));
+    % end
 
-    if isfield(sol, 'mxy')
-        fprintf('const scalar_t mxy = %s;\n', cpp_expr(sol.mxy));
-    end
-
-    if isfield(sol, 'mxz')
-        fprintf('const scalar_t mxz = %s;\n', cpp_expr(sol.mxz));
-    end
-
-    if isfield(sol, 'myz')
-        fprintf('const scalar_t myz = %s;\n', cpp_expr(sol.myz));
-    end
+    fprintf('\ncase normalVector::%s():\n{\n', name);
+    need = incoming_need_from_static(solveShears);
+    print_incoming_second_order_calc(need);
+    print_all_moments_block(sol, phase_field);
+    fprintf('\n   return;\n}\n');
 
 end
 
@@ -532,4 +534,81 @@ function s = cpp_replace_vars(s)
     s = regexprep(s, '\<ux\>', 'moments[m_i<1>()]');
     s = regexprep(s, '\<uy\>', 'moments[m_i<2>()]');
     s = regexprep(s, '\<uz\>', 'moments[m_i<3>()]');
+end
+
+function print_all_moments_block(sol, phase_field)
+
+    mxy = sym(0); if isfield(sol, 'mxy'); mxy = sol.mxy; end
+    mxz = sym(0); if isfield(sol, 'mxz'); mxz = sol.mxz; end
+    myz = sym(0); if isfield(sol, 'myz'); myz = sol.myz; end
+
+    fprintf('   moments[m_i<0>()] = %s; // p\n', cpp_expr(sol.p));
+    fprintf('   moments[m_i<1>()] = static_cast<scalar_t>(0); // ux\n');
+    fprintf('   moments[m_i<2>()] = static_cast<scalar_t>(0); // uy\n');
+    fprintf('   moments[m_i<3>()] = static_cast<scalar_t>(0); // uz\n');
+    fprintf('   moments[m_i<4>()] = static_cast<scalar_t>(0); // mxx\n');
+    fprintf('   moments[m_i<5>()] = %s; // mxy\n', cpp_expr(mxy));
+    fprintf('   moments[m_i<6>()] = %s; // mxz\n', cpp_expr(mxz));
+    fprintf('   moments[m_i<7>()] = static_cast<scalar_t>(0); // myy\n');
+    fprintf('   moments[m_i<8>()] = %s; // myz\n', cpp_expr(myz));
+    fprintf('   moments[m_i<9>()] = static_cast<scalar_t>(0); // mzz\n');
+
+    if phase_field == true
+        fprintf('   moments[m_i<10>()] = static_cast<scalar_t>(0); // phi\n');
+    end
+
+end
+
+function need = incoming_need_init()
+    need = struct('mxx', false, 'myy', false, 'mzz', false, ...
+        'mxy', false, 'mxz', false, 'myz', false);
+end
+
+function print_incoming_second_order_calc(need)
+    % Prints only the required 2nd-order incoming moments.
+    % Intentionally does NOT print p_I.
+
+    if ~(need.mxx || need.myy || need.mzz || need.mxy || need.mxz || need.myz)
+        return;
+    end
+
+    fprintf('   // Incoming moments\n');
+
+    if need.mxx
+        fprintf('   const scalar_t mxx_I = velocitySet::calculate_moment<VelocitySet, X, X>(pop, boundaryNormal);\n');
+    end
+
+    if need.myy
+        fprintf('   const scalar_t myy_I = velocitySet::calculate_moment<VelocitySet, Y, Y>(pop, boundaryNormal);\n');
+    end
+
+    if need.mzz
+        fprintf('   const scalar_t mzz_I = velocitySet::calculate_moment<VelocitySet, Z, Z>(pop, boundaryNormal);\n');
+    end
+
+    if need.mxy
+        fprintf('   const scalar_t mxy_I = velocitySet::calculate_moment<VelocitySet, X, Y>(pop, boundaryNormal);\n');
+    end
+
+    if need.mxz
+        fprintf('   const scalar_t mxz_I = velocitySet::calculate_moment<VelocitySet, X, Z>(pop, boundaryNormal);\n');
+    end
+
+    if need.myz
+        fprintf('   const scalar_t myz_I = velocitySet::calculate_moment<VelocitySet, Y, Z>(pop, boundaryNormal);\n');
+    end
+
+    fprintf('\n');
+end
+
+function need = incoming_need_from_static(solveShears)
+    need = incoming_need_init();
+
+    solveShears = string(solveShears);
+    solveShears = solveShears(:).';
+
+    % Static generator only ever uses shear incoming moments.
+    need.mxy = any(solveShears == "mxy");
+    need.mxz = any(solveShears == "mxz");
+    need.myz = any(solveShears == "myz");
 end
