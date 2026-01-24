@@ -1,6 +1,8 @@
 clc; clearvars; close all
 
-stencil = "D3Q27"; % "D3Q19" or "D3Q27"
+root = fileparts(mfilename("fullpath"));
+addpath(fullfile(root, "functions"));
+
 phase_field = true;
 
 wantNames = [ ...
@@ -14,24 +16,8 @@ wantNames = [ ...
                  "WEST", "EAST", "SOUTH", "NORTH", "BACK", "FRONT"
              ];
 
-[Q, w, cx, cy, cz, bitLists, bcs] = defineStencil(stencil);
-
-% constants
-as = sqrt(sym(3));
-as2 = as ^ 2;
-as4 = as ^ 4;
-cxS = sym(cx(:));
-cyS = sym(cy(:));
-czS = sym(cz(:));
-wS = sym(w(:));
-
-% hermite tensors
-Hxx = cxS .^ 2 - as ^ (-2);
-Hxy = cxS .* cyS;
-Hxz = cxS .* czS;
-Hyy = cyS .^ 2 - as ^ (-2);
-Hyz = cyS .* czS;
-Hzz = czS .^ 2 - as ^ (-2);
+S19 = buildStencilData("D3Q19");
+S27 = buildStencilData("D3Q27");
 
 % symbols
 pI = sym('pI', 'real');
@@ -92,128 +78,26 @@ for c = 1:numel(allCases)
     solveShears = string(allCases{c}.solve);
     solveShears = solveShears(:).';
 
-    Os = getCoordinates(bcs.(key), bitLists);
-    Is = getOppositeCoordinates(Os, cx, cy, cz);
+    Os19 = getCoordinates(S19.bcs.(key), S19.bitLists);
+    Is19 = getOppositeCoordinates(Os19, S19.cx, S19.cy, S19.cz);
 
-    % solve boundary moments
-    sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, omega, pI, mxyI, mxzI, myzI, solveShears);
+    Os27 = getCoordinates(S27.bcs.(key), S27.bitLists);
+    Is27 = getOppositeCoordinates(Os27, S27.cx, S27.cy, S27.cz);
+
+    sol19 = solve_static_case(S19.Q, S19.wS, S19.Hxx, S19.Hxy, S19.Hxz, S19.Hyy, S19.Hyz, S19.Hzz, ...
+        Os19, Is19, S19.as2, S19.as4, omega, pI, mxyI, mxzI, myzI, solveShears);
+
+    sol27 = solve_static_case(S27.Q, S27.wS, S27.Hxx, S27.Hxy, S27.Hxz, S27.Hyy, S27.Hyz, S27.Hzz, ...
+        Os27, Is27, S27.as2, S27.as4, omega, pI, mxyI, mxzI, myzI, solveShears);
 
     fprintf('\ncase normalVector::%s():\n{\n', name);
+
     need = incoming_need_from_static(solveShears);
     print_incoming_second_order_calc(need);
-    print_all_moments_block(sol, phase_field);
+
+    print_all_moments_block_conditional(sol19, sol27, phase_field);
+
     fprintf('\n   return;\n}\n');
-
-end
-
-function [Q, w, cx, cy, cz, bitLists, bcs] = defineStencil(stencil)
-
-    if stencil == "D3Q19"
-        Q = 19;
-        w = zeros(Q, 1);
-        w(1) = 1/3; % i=0
-        w(2:7) = 1/18; % i=1..6
-        w(8:19) = 1/36; % i=7..18
-
-        cx = [0, 1, -1, 0, 0, 0, 0, 1, -1, 1, -1, 0, 0, 1, -1, 1, -1, 0, 0]';
-        cy = [0, 0, 0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, -1, 1, 0, 0, 1, -1]';
-        cz = [0, 0, 0, 0, 0, 1, -1, 0, 0, 1, -1, 1, -1, 0, 0, -1, 1, -1, 1]';
-
-        bitLists = { ...
-                        [0, 2, 4, 6, 8, 10, 12], ...
-                        [0, 1, 4, 6, 12, 13, 15], ...
-                        [0, 2, 3, 6, 10, 14, 17], ...
-                        [0, 1, 3, 6, 7, 15, 17], ...
-                        [0, 2, 4, 5, 8, 16, 18], ...
-                        [0, 1, 4, 5, 9, 13, 18], ...
-                        [0, 2, 3, 5, 11, 14, 16], ...
-                        [0, 1, 3, 5, 7, 9, 11] ...
-                    };
-    elseif stencil == "D3Q27"
-        Q = 27;
-        w = zeros(Q, 1);
-        w(1) = 8/27; % i=0
-        w(2:7) = 2/27; % i=1..6
-        w(8:19) = 1/54; % i=7..18
-        w(20:27) = 1/216; % i=19..26
-
-        cx = [0, 1, -1, 0, 0, 0, 0, 1, -1, 1, -1, 0, 0, 1, -1, 1, -1, 0, 0, 1, -1, 1, -1, 1, -1, -1, 1]';
-        cy = [0, 0, 0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, -1, 1, 0, 0, 1, -1, 1, -1, 1, -1, -1, 1, 1, -1]';
-        cz = [0, 0, 0, 0, 0, 1, -1, 0, 0, 1, -1, 1, -1, 0, 0, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1]';
-
-        bitLists = { ...
-                        [0, 2, 4, 6, 8, 10, 12, 20], ...
-                        [0, 1, 4, 6, 12, 13, 15, 26], ...
-                        [0, 2, 3, 6, 10, 14, 17, 24], ...
-                        [0, 1, 3, 6, 7, 15, 17, 21], ...
-                        [0, 2, 4, 5, 8, 16, 18, 22], ...
-                        [0, 1, 4, 5, 9, 13, 18, 23], ...
-                        [0, 2, 3, 5, 11, 14, 16, 25], ...
-                        [0, 1, 3, 5, 7, 9, 11, 19] ...
-                    };
-    else
-        error('stencil must be "D3Q19" or "D3Q27".');
-    end
-
-    % numeric bitmasks
-    bcs = struct( ...
-        ...
-        'WEST_SOUTH_BACK', 128, 'WEST_SOUTH_FRONT', 8, ...
-        'EAST_SOUTH_BACK', 64, 'EAST_SOUTH_FRONT', 4, ...
-        ...
-        'WEST_SOUTH', 136, 'EAST_SOUTH', 68, ...
-        ...
-        'WEST_BACK', 160, 'WEST_FRONT', 10, ...
-        'EAST_BACK', 80, 'EAST_FRONT', 5, ...
-        ...
-        'SOUTH_BACK', 192, 'SOUTH_FRONT', 12, ...
-        ...
-        'WEST', 170, 'EAST', 85, ...
-        'SOUTH', 204, 'BACK', 240, ...
-        'FRONT', 15, 'NORTH', 51, ...
-        ...
-        'WEST_NORTH_BACK', 32, 'WEST_NORTH_FRONT', 2, ...
-        'EAST_NORTH_BACK', 16, 'EAST_NORTH_FRONT', 1, ...
-        ...
-        'NORTH_BACK', 48, 'NORTH_FRONT', 3, ...
-        ...
-        'EAST_NORTH', 17, 'WEST_NORTH', 34 ...
-    );
-end
-
-function Os = getCoordinates(n, bitLists)
-
-    if n < 0 || n > 255
-        error('Invalid input: n must be between 0 and 255');
-    end
-
-    bits = find(bitget(uint16(n), 1:8)) - 1;
-    coords = [];
-
-    for k = 1:numel(bits)
-        coords = [coords, bitLists{bits(k) + 1}]; %#ok<AGROW>
-    end
-
-    Os = unique(sort(coords));
-end
-
-function Is = getOppositeCoordinates(Os, cx, cy, cz)
-    dirs = [cx(:), cy(:), cz(:)];
-    sel = dirs(Os + 1, :);
-    opp = -sel;
-
-    Is = [];
-
-    for k = 1:size(opp, 1)
-        m = find(dirs(:, 1) == opp(k, 1) & dirs(:, 2) == opp(k, 2) & dirs(:, 3) == opp(k, 3), 1, 'first');
-
-        if ~isempty(m)
-            Is(end + 1) = m - 1; %#ok<AGROW>
-        end
-
-    end
-
-    Is = unique(sort(Is));
 end
 
 function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, omega, pI, mxyI, mxzI, myzI, solveShears)
@@ -341,163 +225,52 @@ function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as
 
 end
 
-function s = cpp_expr(expr)
-    expr = simplify(expr);
+function print_all_moments_block_conditional(sol19, sol27, phase_field)
 
-    if isequal(expr, sym(0))
-        s = 'static_cast<scalar_t>(0)';
-        return;
-    end
+    mxy19 = sym(0); if isfield(sol19, 'mxy'); mxy19 = sol19.mxy; end
+    mxz19 = sym(0); if isfield(sol19, 'mxz'); mxz19 = sol19.mxz; end
+    myz19 = sym(0); if isfield(sol19, 'myz'); myz19 = sol19.myz; end
 
-    vars = [sym('pI'), sym('mxyI'), sym('mxzI'), sym('myzI'), sym('omega')];
+    mxy27 = sym(0); if isfield(sol27, 'mxy'); mxy27 = sol27.mxy; end
+    mxz27 = sym(0); if isfield(sol27, 'mxz'); mxz27 = sol27.mxz; end
+    myz27 = sym(0); if isfield(sol27, 'myz'); myz27 = sol27.myz; end
 
-    [N, D] = numden(expr);
-    N = expand(N);
-    D = expand(D);
+    print_moment_conditional(0, 'p', sol19.p, sol27.p);
 
-    L = sym(1);
-    [cN, ~] = coeffs(N, vars);
-    [cD, ~] = coeffs(D, vars);
-    cAll = [cN, cD];
+    print_moment_conditional(1, 'ux', sym(0), sym(0));
+    print_moment_conditional(2, 'uy', sym(0), sym(0));
+    print_moment_conditional(3, 'uz', sym(0), sym(0));
 
-    for k = 1:numel(cAll)
-        [~, den] = numden(cAll(k));
-        L = lcm(L, den);
-    end
+    print_moment_conditional(4, 'mxx', sym(0), sym(0));
 
-    Nint = expand(L * N);
-    Dint = expand(L * D);
+    print_moment_conditional(5, 'mxy', mxy19, mxy27);
+    print_moment_conditional(6, 'mxz', mxz19, mxz27);
 
-    numStr = cpp_poly(Nint, vars);
-    denStr = cpp_poly(Dint, vars);
-
-    if isequal(Dint, sym(1))
-        s = numStr;
-    else
-        s = ['(' numStr ') / (' denStr ')'];
-    end
-
-end
-
-function s = cpp_poly(P, vars)
-    P = expand(P);
-
-    if isequal(P, sym(0))
-        s = 'static_cast<scalar_t>(0)';
-        return;
-    end
-
-    [c, t] = coeffs(P, vars);
-
-    out = "";
-    first = true;
-
-    for k = 1:numel(c)
-        ck = simplify(c(k));
-        tk = t(k);
-
-        if isequal(ck, sym(0))
-            continue;
-        end
-
-        neg = isAlways(ck < 0);
-        ak = simplify(abs(ck));
-
-        mon = char(tk);
-        mon = cpp_replace_vars(mon);
-        mon = strrep(mon, '*', ' * ');
-
-        if strcmp(mon, '1')
-            term = string(cpp_cast_num(ak));
-        else
-
-            if isequal(ak, sym(1))
-                term = string(mon);
-            else
-                term = string(cpp_cast_num(ak)) + " * " + string(mon);
-            end
-
-        end
-
-        if first
-
-            if neg
-                out = "-" + term;
-            else
-                out = term;
-            end
-
-            first = false;
-        else
-
-            if neg
-                out = out + " - " + term;
-            else
-                out = out + " + " + term;
-            end
-
-        end
-
-    end
-
-    s = char(out);
-end
-
-function s = cpp_cast_num(x)
-    [xn, xd] = numden(x);
-
-    if isequal(xd, sym(1))
-        s = sprintf('static_cast<scalar_t>(%s)', char(xn));
-    else
-        s = sprintf('(static_cast<scalar_t>(%s) / static_cast<scalar_t>(%s))', char(xn), char(xd));
-    end
-
-end
-
-function s = cpp_replace_vars(s)
-    if isstring(s), s = char(s); end
-
-    s = regexprep(s, '\<ux\>\^2', 'ux*ux');
-    s = regexprep(s, '\<uy\>\^2', 'uy*uy');
-    s = regexprep(s, '\<uz\>\^2', 'uz*uz');
-
-    s = regexprep(s, '\<myzI\>', 'myz_I');
-    s = regexprep(s, '\<mxzI\>', 'mxz_I');
-    s = regexprep(s, '\<mxyI\>', 'mxy_I');
-    s = regexprep(s, '\<mzzI\>', 'mzz_I');
-    s = regexprep(s, '\<myyI\>', 'myy_I');
-    s = regexprep(s, '\<mxxI\>', 'mxx_I');
-    s = regexprep(s, '\<pI\>', 'p_I');
-
-    s = regexprep(s, '\<omega\>', 'device::omega');
-
-    s = regexprep(s, '\<p\>', 'moments[m_i<0>()]');
-    s = regexprep(s, '\<ux\>', 'moments[m_i<1>()]');
-    s = regexprep(s, '\<uy\>', 'moments[m_i<2>()]');
-    s = regexprep(s, '\<uz\>', 'moments[m_i<3>()]');
-end
-
-function print_all_moments_block(sol, phase_field)
-
-    mxy = sym(0); if isfield(sol, 'mxy'); mxy = sol.mxy; end
-    mxz = sym(0); if isfield(sol, 'mxz'); mxz = sol.mxz; end
-    myz = sym(0); if isfield(sol, 'myz'); myz = sol.myz; end
-
-    fprintf('   moments[m_i<0>()] = %s; // p\n', cpp_expr(sol.p));
-    fprintf('   moments[m_i<1>()] = static_cast<scalar_t>(0); // ux\n');
-    fprintf('   moments[m_i<2>()] = static_cast<scalar_t>(0); // uy\n');
-    fprintf('   moments[m_i<3>()] = static_cast<scalar_t>(0); // uz\n');
-    fprintf('   moments[m_i<4>()] = static_cast<scalar_t>(0); // mxx\n');
-    fprintf('   moments[m_i<5>()] = %s; // mxy\n', cpp_expr(mxy));
-    fprintf('   moments[m_i<6>()] = %s; // mxz\n', cpp_expr(mxz));
-    fprintf('   moments[m_i<7>()] = static_cast<scalar_t>(0); // myy\n');
-    fprintf('   moments[m_i<8>()] = %s; // myz\n', cpp_expr(myz));
-    fprintf('   moments[m_i<9>()] = static_cast<scalar_t>(0); // mzz\n');
+    print_moment_conditional(7, 'myy', sym(0), sym(0));
+    print_moment_conditional(8, 'myz', myz19, myz27);
+    print_moment_conditional(9, 'mzz', sym(0), sym(0));
 
     if phase_field == true
-        fprintf('   moments[m_i<10>()] = static_cast<scalar_t>(0); // phi\n');
+        print_moment_conditional(10, 'phi', sym(0), sym(0));
     end
 
+end
+
+function print_moment_conditional(idx, tag, expr19, expr27)
+
+    if expr_equal(expr19, expr27)
+        fprintf('   moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
+        return;
+    end
+
+    fprintf('   if constexpr (VelocitySet::Q() == 19)\n');
+    fprintf('   {\n');
+    fprintf('       moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
+    fprintf('   }\n');
+    fprintf('   else\n');
+    fprintf('   {\n');
+    fprintf('       moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr27), tag);
+    fprintf('   }\n');
 end
 
 function need = incoming_need_init()
@@ -506,8 +279,6 @@ function need = incoming_need_init()
 end
 
 function print_incoming_second_order_calc(need)
-    % Prints only the required 2nd-order incoming moments.
-    % Intentionally does NOT print p_I.
 
     if ~(need.mxx || need.myy || need.mzz || need.mxy || need.mxz || need.myz)
         return;
