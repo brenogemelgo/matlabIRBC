@@ -230,36 +230,3 @@ function printAllMoments(sol19, sol27, phase_field)
     end
 
 end
-
-function printMoment(idx, tag, expr19, expr27)
-
-    if exprEqual(expr19, expr27)
-        fprintf('   moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
-        return;
-    end
-
-    fprintf('   if constexpr (VelocitySet::Q() == 19)\n');
-    fprintf('   {\n');
-    fprintf('       moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
-    fprintf('   }\n');
-    fprintf('   else\n');
-    fprintf('   {\n');
-    fprintf('       moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr27), tag);
-    fprintf('   }\n');
-end
-
-function need = incomingNeedInit()
-    need = struct('mxx', false, 'myy', false, 'mzz', false, ...
-        'mxy', false, 'mxz', false, 'myz', false);
-end
-
-function need = incomingNeedStatic(solveShears)
-    need = incomingNeedInit();
-
-    solveShears = string(solveShears);
-    solveShears = solveShears(:).';
-
-    need.mxy = any(solveShears == "mxy");
-    need.mxz = any(solveShears == "mxz");
-    need.myz = any(solveShears == "myz");
-end
