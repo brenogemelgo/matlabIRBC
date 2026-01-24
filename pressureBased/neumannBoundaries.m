@@ -2,6 +2,7 @@ clc; clearvars; close all
 
 root = fileparts(mfilename("fullpath"));
 addpath(fullfile(root, "functions"));
+addpath(fullfile(root, "..", "commonFunctions"));
 
 phase_field = true;
 
@@ -19,7 +20,6 @@ wantNames = [ ...
 S19 = packStencil("D3Q19");
 S27 = packStencil("D3Q27");
 
-% symbols
 p = sym('p', 'real');
 ux = sym('ux', 'real');
 uy = sym('uy', 'real');
@@ -32,7 +32,6 @@ mxyI = sym('mxyI', 'real');
 mxzI = sym('mxzI', 'real');
 myzI = sym('myzI', 'real');
 
-% cases
 corner = { ...
               struct('name', "WEST_SOUTH_BACK", 'key', "WEST_SOUTH_BACK", 'type', "corner"), ...
               struct('name', "WEST_SOUTH_FRONT", 'key', "WEST_SOUTH_FRONT", 'type', "corner"), ...
@@ -86,7 +85,6 @@ allCases = allCases.';
 mask = cellfun(@(s) any(s.name == wantNames), allCases);
 allCases = allCases(mask);
 
-% main loop
 for c = 1:numel(allCases)
     name = allCases{c}.name;
     key = allCases{c}.key;
@@ -98,24 +96,23 @@ for c = 1:numel(allCases)
     Os27 = getCoordinates(S27.bcs.(key), S27.bitLists);
     Is27 = getOppositeCoordinates(Os27, S27.cx, S27.cy, S27.cz);
 
-    sol19 = solve_specific_case(S19.Q, S19.wS, S19.Hxx, S19.Hxy, S19.Hxz, S19.Hyy, S19.Hyz, S19.Hzz, ...
+    sol19 = solveNeumann(S19.Q, S19.wS, S19.Hxx, S19.Hxy, S19.Hxz, S19.Hyy, S19.Hyz, S19.Hzz, ...
         Os19, Is19, S19.as2, S19.as4, S19.cxS, S19.cyS, S19.czS, ...
         p, ux, uy, uz, pI, mxxI, myyI, mzzI, mxyI, mxzI, myzI, typ);
 
-    sol27 = solve_specific_case(S27.Q, S27.wS, S27.Hxx, S27.Hxy, S27.Hxz, S27.Hyy, S27.Hyz, S27.Hzz, ...
+    sol27 = solveNeumann(S27.Q, S27.wS, S27.Hxx, S27.Hxy, S27.Hxz, S27.Hyy, S27.Hyz, S27.Hzz, ...
         Os27, Is27, S27.as2, S27.as4, S27.cxS, S27.cyS, S27.czS, ...
         p, ux, uy, uz, pI, mxxI, myyI, mzzI, mxyI, mxzI, myzI, typ);
 
-    print_neumann_case_block_conditional(name, typ, sol19, sol27, phase_field);
+    printAllMoments(name, typ, sol19, sol27, phase_field);
 
 end
 
-function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, ...
+function sol = solveNeumann(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, ...
         cxS, cyS, czS, ...
         p, ux, uy, uz, ...
         pI, mxxI, myyI, mzzI, mxyI, mxzI, myzI, typ) %#ok<INUSD>
 
-    % equilibrium moments for anything not explicitly solved
     mxx = ux * ux;
     myy = uy * uy;
     mzz = uz * uz;
@@ -123,13 +120,11 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
     mxz = ux * uz;
     myz = uy * uz;
 
-    % corner: equilibrium
     if typ == "corner"
         sol = struct();
         return;
     end
 
-    % promote only the specified moments to symbolic unknowns
     switch typ
         case "edge_xz_yz"
             mxz = sym('mxz', 'real'); myz = sym('myz', 'real');
@@ -159,17 +154,15 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
             unknowns = [mxx; mxy; mxz; myy; myz];
 
         otherwise
-            error('solve_specific_case: unknown typ "%s".', typ);
+            error('solveNeumann: unknown typ "%s".', typ);
     end
 
-    % build f
     f = sym(zeros(Q, 1));
 
     for i = 0:(Q - 1)
         ii = i + 1;
 
-        f(ii) = wS(ii) * ( ...
-            p + ...
+        f(ii) = wS(ii) * (p + ...
             as2 * (ux * cxS(ii) + uy * cyS(ii) + uz * czS(ii)) + ...
             (as4 / 2) * mxx * Hxx(ii) + as4 * mxy * Hxy(ii) + as4 * mxz * Hxz(ii) + ...
             (as4 / 2) * myy * Hyy(ii) + as4 * myz * Hyz(ii) + (as4 / 2) * mzz * Hzz(ii));
@@ -183,7 +176,6 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
     sumHyy = sum(f(idx) .* Hyy(idx));
     sumHzz = sum(f(idx) .* Hzz(idx));
 
-    % build equations and unknowns
     switch typ
         case "edge_xz_yz"
             eqs = [ ...
@@ -231,7 +223,7 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
             eqs = [eqmXX; eqXY; eqXZ; eqmYY; eqYZ];
 
         otherwise
-            error('solve_specific_case: unknown typ "%s".', typ);
+            error('solveNeumann: unknown typ "%s".', typ);
     end
 
     S = solve(eqs, unknowns);
@@ -244,7 +236,7 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
             vn = char(unknowns(k));
 
             if ~isfield(S, vn) || isempty(S.(vn))
-                error('solve_specific_case: no solution for "%s" (typ=%s).', vn, typ);
+                error('solveNeumann: no solution for "%s" (typ=%s).', vn, typ);
             end
 
             sol.(vn) = simplify(S.(vn)(1));
@@ -263,7 +255,7 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
             elseif size(S, 1) == nVars
                 Srow = transpose(S(:, 1));
             else
-                error('solve_specific_case: unexpected solve() output size [%d x %d] for nVars=%d (typ=%s).', ...
+                error('solveNeumann: unexpected solve() output size [%d x %d] for nVars=%d (typ=%s).', ...
                     size(S, 1), size(S, 2), nVars, typ);
             end
 
@@ -278,13 +270,13 @@ function sol = solve_specific_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, 
 
 end
 
-function print_neumann_case_block_conditional(name, typ, sol19, sol27, phase_field)
+function printAllMoments(name, typ, sol19, sol27, phase_field)
 
-    [dx, dy, dz] = neumann_shift_from_name(name);
+    [dx, dy, dz] = neumannShift(name);
 
     fprintf('\ncase normalVector::%s():\n{\n', name);
     fprintf('   const label_t tid = device::idxBlock(threadIdx.x%s, threadIdx.y%s, threadIdx.z%s);\n\n', ...
-        off_str(dx), off_str(dy), off_str(dz));
+        offStr(dx), offStr(dy), offStr(dz));
 
     fprintf('   // Classic Neumann\n');
     fprintf('   moments[m_i<0>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<0>()];   // p\n');
@@ -296,37 +288,37 @@ function print_neumann_case_block_conditional(name, typ, sol19, sol27, phase_fie
         fprintf('   moments[m_i<10>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<10>()]; // phi\n');
     end
 
-    need = incoming_need_from_neumann_type(typ);
-    print_incoming_second_order_calc(need);
+    need = incomingNeedNeumann(typ);
+    incomingSecondOrder(need);
 
     fprintf('\n   // IRBC-Neumann\n');
 
     ux = sym('ux', 'real'); uy = sym('uy', 'real'); uz = sym('uz', 'real');
 
-    e19 = moment_exprs(sol19, ux, uy, uz);
-    e27 = moment_exprs(sol27, ux, uy, uz);
+    e19 = momentExpr(sol19, ux, uy, uz);
+    e27 = momentExpr(sol27, ux, uy, uz);
 
-    print_moment_conditional(4, 'mxx', e19.mxx, e27.mxx);
-    print_moment_conditional(5, 'mxy', e19.mxy, e27.mxy);
-    print_moment_conditional(6, 'mxz', e19.mxz, e27.mxz);
-    print_moment_conditional(7, 'myy', e19.myy, e27.myy);
-    print_moment_conditional(8, 'myz', e19.myz, e27.myz);
-    print_moment_conditional(9, 'mzz', e19.mzz, e27.mzz);
+    printMoment(4, 'mxx', e19.mxx, e27.mxx);
+    printMoment(5, 'mxy', e19.mxy, e27.mxy);
+    printMoment(6, 'mxz', e19.mxz, e27.mxz);
+    printMoment(7, 'myy', e19.myy, e27.myy);
+    printMoment(8, 'myz', e19.myz, e27.myz);
+    printMoment(9, 'mzz', e19.mzz, e27.mzz);
 
     fprintf('\n   return;\n');
     fprintf('}\n');
 end
 
-function E = moment_exprs(sol, ux, uy, uz)
-    E.mxx = get_or(sol, 'mxx', ux * ux);
-    E.mxy = get_or(sol, 'mxy', ux * uy);
-    E.mxz = get_or(sol, 'mxz', ux * uz);
-    E.myy = get_or(sol, 'myy', uy * uy);
-    E.myz = get_or(sol, 'myz', uy * uz);
-    E.mzz = get_or(sol, 'mzz', uz * uz);
+function E = momentExpr(sol, ux, uy, uz)
+    E.mxx = getOr(sol, 'mxx', ux * ux);
+    E.mxy = getOr(sol, 'mxy', ux * uy);
+    E.mxz = getOr(sol, 'mxz', ux * uz);
+    E.myy = getOr(sol, 'myy', uy * uy);
+    E.myz = getOr(sol, 'myz', uy * uz);
+    E.mzz = getOr(sol, 'mzz', uz * uz);
 end
 
-function print_moment_conditional(idx, tag, expr19, expr27)
+function printMoment(idx, tag, expr19, expr27)
 
     if exprEqual(expr19, expr27)
         fprintf('   moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
@@ -343,11 +335,11 @@ function print_moment_conditional(idx, tag, expr19, expr27)
     fprintf('   }\n');
 end
 
-function e = get_or(sol, field, fallback)
+function e = getOr(sol, field, fallback)
     if isfield(sol, field), e = sol.(field); else, e = fallback; end
 end
 
-function s = off_str(d)
+function s = offStr(d)
 
     if d == 0
         s = '';
@@ -359,7 +351,7 @@ function s = off_str(d)
 
 end
 
-function [dx, dy, dz] = neumann_shift_from_name(name)
+function [dx, dy, dz] = neumannShift(name)
     dx = 0; dy = 0; dz = 0;
 
     if contains(name, "NORTH")
@@ -388,48 +380,13 @@ function [dx, dy, dz] = neumann_shift_from_name(name)
 
 end
 
-function need = incoming_need_init()
+function need = incomingNeedInit()
     need = struct('mxx', false, 'myy', false, 'mzz', false, ...
         'mxy', false, 'mxz', false, 'myz', false);
 end
 
-function print_incoming_second_order_calc(need)
-
-    if ~(need.mxx || need.myy || need.mzz || need.mxy || need.mxz || need.myz)
-        return;
-    end
-
-    fprintf('\n');
-    fprintf('   // Incoming moments\n');
-
-    if need.mxx
-        fprintf('   const scalar_t mxx_I = velocitySet::calculate_moment<VelocitySet, X, X>(pop, boundaryNormal);\n');
-    end
-
-    if need.myy
-        fprintf('   const scalar_t myy_I = velocitySet::calculate_moment<VelocitySet, Y, Y>(pop, boundaryNormal);\n');
-    end
-
-    if need.mzz
-        fprintf('   const scalar_t mzz_I = velocitySet::calculate_moment<VelocitySet, Z, Z>(pop, boundaryNormal);\n');
-    end
-
-    if need.mxy
-        fprintf('   const scalar_t mxy_I = velocitySet::calculate_moment<VelocitySet, X, Y>(pop, boundaryNormal);\n');
-    end
-
-    if need.mxz
-        fprintf('   const scalar_t mxz_I = velocitySet::calculate_moment<VelocitySet, X, Z>(pop, boundaryNormal);\n');
-    end
-
-    if need.myz
-        fprintf('   const scalar_t myz_I = velocitySet::calculate_moment<VelocitySet, Y, Z>(pop, boundaryNormal);\n');
-    end
-
-end
-
-function need = incoming_need_from_neumann_type(typ)
-    need = incoming_need_init();
+function need = incomingNeedNeumann(typ)
+    need = incomingNeedInit();
 
     switch typ
         case "edge_xz_yz"
@@ -445,7 +402,6 @@ function need = incoming_need_from_neumann_type(typ)
             need.mxz = true;
 
         case "face_we"
-            % uses myy_I and mzz_I plus all 3 shears
             need.myy = true;
             need.mzz = true;
             need.mxy = true;
@@ -453,7 +409,6 @@ function need = incoming_need_from_neumann_type(typ)
             need.myz = true;
 
         case "face_sn"
-            % uses mxx_I and mzz_I plus all 3 shears
             need.mxx = true;
             need.mzz = true;
             need.mxy = true;
@@ -461,7 +416,6 @@ function need = incoming_need_from_neumann_type(typ)
             need.myz = true;
 
         case "face_bf"
-            % uses mxx_I and myy_I plus all 3 shears
             need.mxx = true;
             need.myy = true;
             need.mxy = true;
@@ -472,7 +426,7 @@ function need = incoming_need_from_neumann_type(typ)
             % nothing
 
         otherwise
-            error('incoming_need_from_neumann_type: unknown typ "%s".', typ);
+            error('incomingNeedNeumann: unknown typ "%s".', typ);
     end
 
 end

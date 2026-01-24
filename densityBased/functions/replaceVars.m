@@ -11,11 +11,11 @@ function s = replaceVars(s)
     s = regexprep(s, '\<mzzI\>', 'mzz_I');
     s = regexprep(s, '\<myyI\>', 'myy_I');
     s = regexprep(s, '\<mxxI\>', 'mxx_I');
-    s = regexprep(s, '\<pI\>', 'p_I');
+    s = regexprep(s, '\<rhoI\>', 'rho_I');
 
     s = regexprep(s, '\<omega\>', 'device::omega');
 
-    s = regexprep(s, '\<p\>', 'moments[m_i<0>()]');
+    s = regexprep(s, '\<rho\>', 'moments[m_i<0>()]');
     s = regexprep(s, '\<ux\>', 'moments[m_i<1>()]');
     s = regexprep(s, '\<uy\>', 'moments[m_i<2>()]');
     s = regexprep(s, '\<uz\>', 'moments[m_i<3>()]');

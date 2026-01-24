@@ -6,7 +6,7 @@ function s = expression(expr)
         return;
     end
 
-    vars = [sym('pI'), sym('mxyI'), sym('mxzI'), sym('myzI'), sym('omega')];
+    vars = [sym('rhoI'), sym('mxyI'), sym('mxzI'), sym('myzI'), sym('omega')];
 
     [N, D] = numden(expr);
     N = expand(N);

@@ -2,6 +2,7 @@ clc; clearvars; close all
 
 root = fileparts(mfilename("fullpath"));
 addpath(fullfile(root, "functions"));
+addpath(fullfile(root, "..", "commonFunctions"));
 
 phase_field = true;
 
@@ -19,14 +20,12 @@ wantNames = [ ...
 S19 = buildStencilData("D3Q19");
 S27 = buildStencilData("D3Q27");
 
-% symbols
 rhoI = sym('rhoI', 'real');
 mxyI = sym('mxyI', 'real');
 mxzI = sym('mxzI', 'real');
 myzI = sym('myzI', 'real');
 omega = sym('omega', 'real');
 
-% cases
 corner = { ...
               struct('name', "WEST_SOUTH_BACK", 'key', "WEST_SOUTH_BACK", 'solve', string.empty(1, 0)), ...
               struct('name', "WEST_SOUTH_FRONT", 'key', "WEST_SOUTH_FRONT", 'solve', string.empty(1, 0)), ...
@@ -70,7 +69,6 @@ allCases = allCases.';
 mask = cellfun(@(s) any(s.name == wantNames), allCases);
 allCases = allCases(mask);
 
-% main loop
 for c = 1:numel(allCases)
     name = allCases{c}.name;
     key = allCases{c}.key;
@@ -84,48 +82,45 @@ for c = 1:numel(allCases)
     Os27 = getCoordinates(S27.bcs.(key), S27.bitLists);
     Is27 = getOppositeCoordinates(Os27, S27.cx, S27.cy, S27.cz);
 
-    sol19 = solve_static_case(S19.Q, S19.wS, S19.Hxx, S19.Hxy, S19.Hxz, S19.Hyy, S19.Hyz, S19.Hzz, ...
+    sol19 = solveStatic(S19.Q, S19.wS, S19.Hxx, S19.Hxy, S19.Hxz, S19.Hyy, S19.Hyz, S19.Hzz, ...
         Os19, Is19, S19.as2, S19.as4, omega, rhoI, mxyI, mxzI, myzI, solveShears);
 
-    sol27 = solve_static_case(S27.Q, S27.wS, S27.Hxx, S27.Hxy, S27.Hxz, S27.Hyy, S27.Hyz, S27.Hzz, ...
+    sol27 = solveStatic(S27.Q, S27.wS, S27.Hxx, S27.Hxy, S27.Hxz, S27.Hyy, S27.Hyz, S27.Hzz, ...
         Os27, Is27, S27.as2, S27.as4, omega, rhoI, mxyI, mxzI, myzI, solveShears);
 
     fprintf('\ncase normalVector::%s():\n{\n', name);
 
-    need = incoming_need_from_static(solveShears);
-    print_incoming_second_order_calc(need);
+    need = incomingNeedStatic(solveShears);
+    incomingSecondOrder(need);
 
-    print_all_moments_block_conditional(sol19, sol27, phase_field);
+    printAllMoments(sol19, sol27, phase_field);
 
     fprintf('\n   return;\n}\n');
 end
 
-% TODO
-function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, omega, rhoI, mxyI, mxzI, myzI, solveShears)
-    % unknowns
+function sol = solveStatic(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, omega, rhoI, mxyI, mxzI, myzI, solveShears)
     rho = sym('rho', 'real');
+
+    inv_rho_I = sym('inv_rho_I', 'real');
 
     solveShears = string(solveShears);
     solveShears = solveShears(:).';
 
-    % shears
     mxy = sym(0); mxz = sym(0); myz = sym(0);
     if any(solveShears == "mxy"); mxy = sym('mxy', 'real'); end
     if any(solveShears == "mxz"); mxz = sym('mxz', 'real'); end
     if any(solveShears == "myz"); myz = sym('myz', 'real'); end
 
-    % static reset
     ux = sym(0); uy = sym(0); uz = sym(0);
     mxx = sym(0); myy = sym(0); mzz = sym(0);
 
-    % build f and feq
     f = sym(zeros(Q, 1));
     feq = sym(zeros(Q, 1));
 
     for i = 0:(Q - 1)
         ii = i + 1;
 
-        f(ii) = wS(ii) * rho * ( ...
+        f(ii) = wS(ii) * rho * (1 + ...
             as2 * (ux * 0 + uy * 0 + uz * 0) + ...
             (as4 / 2) * mxx * Hxx(ii) + as4 * mxy * Hxy(ii) + as4 * mxz * Hxz(ii) + ...
             (as4 / 2) * myy * Hyy(ii) + as4 * myz * Hyz(ii) + (as4 / 2) * mzz * Hzz(ii) ...
@@ -134,41 +129,41 @@ function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as
         feq(ii) = wS(ii) * rho;
     end
 
-    % equations
     eqs = sym([]);
 
-    % density constraint
     eqRho = rhoI == sum((1 - omega) * f(Os + 1) + omega * feq(Os + 1));
     eqs(end + 1) = eqRho;
 
     unknowns = rho;
 
     if any(solveShears == "mxy")
-        eqMxy = mxyI == sum(f(Is + 1) .* Hxy(Is + 1));
+        eqMxy = rhoI * mxyI == sum(f(Is + 1) .* Hxy(Is + 1));
         eqs(end + 1) = eqMxy;
-        unknowns(end + 1) = sym('mxy', 'real');
+        unknowns(end + 1) = mxy;
     end
 
     if any(solveShears == "mxz")
-        eqMxz = mxzI == sum(f(Is + 1) .* Hxz(Is + 1));
+        eqMxz = rhoI * mxzI == sum(f(Is + 1) .* Hxz(Is + 1));
         eqs(end + 1) = eqMxz;
-        unknowns(end + 1) = sym('mxz', 'real');
+        unknowns(end + 1) = mxz;
     end
 
     if any(solveShears == "myz")
-        eqMyz = myzI == sum(f(Is + 1) .* Hyz(Is + 1));
+        eqMyz = rhoI * myzI == sum(f(Is + 1) .* Hyz(Is + 1));
         eqs(end + 1) = eqMyz;
-        unknowns(end + 1) = sym('myz', 'real');
+        unknowns(end + 1) = myz;
     end
 
     S = solve(eqs, unknowns);
 
     sol = struct();
 
+    sol.inv_rho_I = inv_rho_I;
+
     if isstruct(S)
 
         if ~isfield(S, 'rho') || isempty(S.rho)
-            error('solve_static_case_density: no solution for rho');
+            error('solveStatic no solution for rho');
         end
 
         sol.rho = simplify(S.rho(1));
@@ -190,7 +185,7 @@ function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as
             elseif size(S, 1) == nVars
                 Srow = transpose(S(:, 1));
             else
-                error('solve_static_case_density: unexpected solve() output size [%d x %d] for nVars=%d', size(S, 1), size(S, 2), nVars);
+                error('solveStatic: unexpected solve() output size [%d x %d] for nVars=%d', size(S, 1), size(S, 2), nVars);
             end
 
         end
@@ -205,7 +200,7 @@ function sol = solve_static_case(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as
 
 end
 
-function print_all_moments_block_conditional(sol19, sol27, phase_field)
+function printAllMoments(sol19, sol27, phase_field)
 
     mxy19 = sym(0); if isfield(sol19, 'mxy'); mxy19 = sol19.mxy; end
     mxz19 = sym(0); if isfield(sol19, 'mxz'); mxz19 = sol19.mxz; end
@@ -215,28 +210,28 @@ function print_all_moments_block_conditional(sol19, sol27, phase_field)
     mxz27 = sym(0); if isfield(sol27, 'mxz'); mxz27 = sol27.mxz; end
     myz27 = sym(0); if isfield(sol27, 'myz'); myz27 = sol27.myz; end
 
-    print_moment_conditional(0, 'p', sol19.p, sol27.p);
+    printMoment(0, 'rho', sol19.rho, sol27.rho);
 
-    print_moment_conditional(1, 'ux', sym(0), sym(0));
-    print_moment_conditional(2, 'uy', sym(0), sym(0));
-    print_moment_conditional(3, 'uz', sym(0), sym(0));
+    printMoment(1, 'ux', sym(0), sym(0));
+    printMoment(2, 'uy', sym(0), sym(0));
+    printMoment(3, 'uz', sym(0), sym(0));
 
-    print_moment_conditional(4, 'mxx', sym(0), sym(0));
+    printMoment(4, 'mxx', sym(0), sym(0));
 
-    print_moment_conditional(5, 'mxy', mxy19, mxy27);
-    print_moment_conditional(6, 'mxz', mxz19, mxz27);
+    printMoment(5, 'mxy', mxy19, mxy27);
+    printMoment(6, 'mxz', mxz19, mxz27);
 
-    print_moment_conditional(7, 'myy', sym(0), sym(0));
-    print_moment_conditional(8, 'myz', myz19, myz27);
-    print_moment_conditional(9, 'mzz', sym(0), sym(0));
+    printMoment(7, 'myy', sym(0), sym(0));
+    printMoment(8, 'myz', myz19, myz27);
+    printMoment(9, 'mzz', sym(0), sym(0));
 
     if phase_field == true
-        print_moment_conditional(10, 'phi', sym(0), sym(0));
+        printMoment(10, 'phi', sym(0), sym(0));
     end
 
 end
 
-function print_moment_conditional(idx, tag, expr19, expr27)
+function printMoment(idx, tag, expr19, expr27)
 
     if exprEqual(expr19, expr27)
         fprintf('   moments[m_i<%d>()] = %s; // %s\n', idx, expression(expr19), tag);
@@ -253,48 +248,13 @@ function print_moment_conditional(idx, tag, expr19, expr27)
     fprintf('   }\n');
 end
 
-function need = incoming_need_init()
+function need = incomingNeedInit()
     need = struct('mxx', false, 'myy', false, 'mzz', false, ...
         'mxy', false, 'mxz', false, 'myz', false);
 end
 
-function print_incoming_second_order_calc(need)
-
-    if ~(need.mxx || need.myy || need.mzz || need.mxy || need.mxz || need.myz)
-        return;
-    end
-
-    fprintf('   // Incoming moments\n');
-
-    if need.mxx
-        fprintf('   const scalar_t mxx_I = velocitySet::calculate_moment<VelocitySet, X, X>(pop, boundaryNormal);\n');
-    end
-
-    if need.myy
-        fprintf('   const scalar_t myy_I = velocitySet::calculate_moment<VelocitySet, Y, Y>(pop, boundaryNormal);\n');
-    end
-
-    if need.mzz
-        fprintf('   const scalar_t mzz_I = velocitySet::calculate_moment<VelocitySet, Z, Z>(pop, boundaryNormal);\n');
-    end
-
-    if need.mxy
-        fprintf('   const scalar_t mxy_I = velocitySet::calculate_moment<VelocitySet, X, Y>(pop, boundaryNormal);\n');
-    end
-
-    if need.mxz
-        fprintf('   const scalar_t mxz_I = velocitySet::calculate_moment<VelocitySet, X, Z>(pop, boundaryNormal);\n');
-    end
-
-    if need.myz
-        fprintf('   const scalar_t myz_I = velocitySet::calculate_moment<VelocitySet, Y, Z>(pop, boundaryNormal);\n');
-    end
-
-    fprintf('\n');
-end
-
-function need = incoming_need_from_static(solveShears)
-    need = incoming_need_init();
+function need = incomingNeedStatic(solveShears)
+    need = incomingNeedInit();
 
     solveShears = string(solveShears);
     solveShears = solveShears(:).';

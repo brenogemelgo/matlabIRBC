@@ -11,7 +11,7 @@ function tf = exprEqual(a, b)
         return;
     end
 
-    vars = [sym('pI'), sym('mxyI'), sym('mxzI'), sym('myzI'), sym('omega')];
+    vars = [sym('rhoI'), sym('mxyI'), sym('mxzI'), sym('myzI'), sym('omega')];
     omegaVals = [sym(2) / 3, sym(3) / 5, sym(5) / 7, sym(7) / 11, sym(11) / 13];
     ints = sym([2 3 5 7 11 13 17 19 23 29]);
 
