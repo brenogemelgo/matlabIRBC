@@ -278,11 +278,17 @@ function printAllMoments(name, typ, sol19, sol27, phase_field)
     fprintf('   const label_t tid = device::idxBlock(threadIdx.x%s, threadIdx.y%s, threadIdx.z%s);\n\n', ...
         offStr(dx), offStr(dy), offStr(dz));
 
+    if phase_field
+        nm = 'NUMBER_MOMENTS<true>()';
+    else
+        nm = 'NUMBER_MOMENTS<false>()';
+    end
+
     fprintf('   // Classic Neumann\n');
-    fprintf('   moments[m_i<0>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<0>()];   // p\n');
-    fprintf('   moments[m_i<1>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<1>()];   // ux\n');
-    fprintf('   moments[m_i<2>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<2>()];   // uy\n');
-    fprintf('   moments[m_i<3>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<3>()];   // uz\n');
+    fprintf('   moments[m_i<0>()] = shared_buffer[tid * (%s + 1) + m_i<0>()];   // p\n', nm);
+    fprintf('   moments[m_i<1>()] = shared_buffer[tid * (%s + 1) + m_i<1>()];   // ux\n', nm);
+    fprintf('   moments[m_i<2>()] = shared_buffer[tid * (%s + 1) + m_i<2>()];   // uy\n', nm);
+    fprintf('   moments[m_i<3>()] = shared_buffer[tid * (%s + 1) + m_i<3>()];   // uz\n', nm);
 
     if phase_field
         fprintf('   moments[m_i<10>()] = shared_buffer[tid * (NUMBER_MOMENTS<true>() + 1) + m_i<10>()]; // phi\n');

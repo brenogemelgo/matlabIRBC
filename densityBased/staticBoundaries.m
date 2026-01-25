@@ -101,8 +101,6 @@ end
 function sol = solveStatic(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4, omega, rhoI, mxyI, mxzI, myzI, solveShears)
     rho = sym('rho', 'real');
 
-    inv_rho_I = sym('inv_rho_I', 'real');
-
     solveShears = string(solveShears);
     solveShears = solveShears(:).';
 
@@ -158,12 +156,10 @@ function sol = solveStatic(Q, wS, Hxx, Hxy, Hxz, Hyy, Hyz, Hzz, Os, Is, as2, as4
 
     sol = struct();
 
-    sol.inv_rho_I = inv_rho_I;
-
     if isstruct(S)
 
         if ~isfield(S, 'rho') || isempty(S.rho)
-            error('solveStatic no solution for rho');
+            error('solveStatic: no solution for rho');
         end
 
         sol.rho = simplify(S.rho(1));
