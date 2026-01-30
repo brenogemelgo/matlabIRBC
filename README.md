@@ -32,7 +32,7 @@ phase_field = true; % or false
 `wantNames` defines which boundaries are generated.
 Only the names listed in this array are emitted.
 
-Example (`ssmd`):
+Example:
 ```matlab
 wantNames = [ ...
     "WEST_NORTH_FRONT", "EAST_NORTH_FRONT", ...
