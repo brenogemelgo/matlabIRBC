@@ -4,7 +4,7 @@ function incoming2ndStatic(need)
         return;
     end
 
-    fprintf('\n   // Incoming moments\n');
+    fprintf('   // Incoming moments\n');
 
     if need.mxx
         fprintf('   const scalar_t mxx_I = velocitySet::calculate_moment<VelocitySet, X, X>(pop, boundaryNormal) * inv_rho_I;\n');

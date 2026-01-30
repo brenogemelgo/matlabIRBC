@@ -1,10 +1,10 @@
-function incomingSecondOrder(need)
+function incoming2ndStatic(need)
 
     if ~(need.mxx || need.myy || need.mzz || need.mxy || need.mxz || need.myz)
         return;
     end
 
-    fprintf('\n   // Incoming moments\n');
+    fprintf('   // Incoming moments\n');
 
     if need.mxx
         fprintf('   const scalar_t mxx_I = velocitySet::calculate_moment<VelocitySet, X, X>(pop, boundaryNormal);\n');

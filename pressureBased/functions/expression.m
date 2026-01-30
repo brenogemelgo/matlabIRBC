@@ -34,4 +34,5 @@ function s = expression(expr)
         s = ['(' numStr ') / (' denStr ')'];
     end
 
+    s = castScalarLiterals(s);
 end
