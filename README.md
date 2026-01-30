@@ -17,12 +17,30 @@ are intended to be modified:
 - `neumannBoundaries.m`
 - `staticBoundaries.m`
 
-All other files should be treated as common infrastructure.
+All other files are shared infrastructure.
 
 ## Configuration
 
-Inside both generator files:
+Both `neumannBoundaries.m` and `staticBoundaries.m` expose the same controls.
 
 ### Phase-field coupling
 ```matlab
-phase_field = true;   % or false
+phase_field = true; % or false
+```
+
+### Boundary selection (wantNames)
+`wantNames` defines which boundaries are generated.
+Only the names listed in this array are emitted.
+
+Example (`ssmd`):
+```matlab
+wantNames = [ ...
+    "WEST_NORTH_FRONT", "EAST_NORTH_FRONT", ...
+    ...
+    "WEST_NORTH", "EAST_NORTH", ...
+    "WEST_FRONT", "EAST_FRONT", ...
+    "NORTH_FRONT", ...
+    ...
+    "NORTH", "FRONT"
+];
+```
