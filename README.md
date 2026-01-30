@@ -28,7 +28,7 @@ Both `neumannBoundaries.m` and `staticBoundaries.m` expose the same controls.
 phase_field = true; % or false
 ```
 
-### Boundary selection (`wantNames)
+### Boundary selection (`wantNames`)
 `wantNames` defines which boundaries are generated.
 Only the names listed in this array are emitted.
 
